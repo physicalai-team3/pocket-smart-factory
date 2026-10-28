@@ -1,6 +1,6 @@
 """C1 Gateway — 세션/QR, 폰·대시보드 WebSocket, C2→C3→C4 오케스트레이션.
 
-명세: docs/02-containers.md#c1-gateway--담당-a, 메시지: docs/03-messages.md §2, §3
+명세: docs/02-containers.md#c1-gateway, 메시지: docs/03-messages.md §2, §3
 """
 import os
 

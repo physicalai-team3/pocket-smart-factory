@@ -24,6 +24,7 @@ docker compose logs cloudflared | grep trycloudflare   # 공개 URL
 
 | 디렉터리 | 내용 | 담당 |
 |---|---|---|
-| `nginx/`, `web/`, `services/c1_gateway/`, `services/c2_preprocess/` | 인프라, 웹, 스트리밍, 전처리 | A |
-| `services/c3_inference/`, `services/c4_visualizer/`, `tools/eval_offline.py` | 추론, 판정, 추적, 평가 | B |
-| `shared/schemas.py`, `docs/03-messages.md` | 메시지 계약 | 공동 |
+| `docker-compose.yml`, `nginx/`, `services/c1_gateway/`, `services/c2_preprocess/`, `web/phone.html`, `tools/replay.py` | 인프라, 스트리밍, 전처리 | A |
+| `web/index.html`, `services/c4_visualizer/` | 대시보드, 추적, 카운트, 마킹 | B |
+| `services/c3_inference/`, `tools/eval_offline.py`, `tools/download_models.sh` | 분할, 판정, 평가 | C |
+| `shared/schemas.py`, `docs/03-messages.md` | 메시지 계약 | 공동 (3인 리뷰) |

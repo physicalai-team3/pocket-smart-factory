@@ -1,6 +1,6 @@
 """C2 Preprocess — 디코드, ROI 원근 보정, 리사이즈, 재인코딩. 무상태.
 
-명세: docs/02-containers.md#c2-preprocess--담당-a, 메시지: docs/03-messages.md §4.1
+명세: docs/02-containers.md#c2-preprocess, 메시지: docs/03-messages.md §4.1
 """
 import os
 

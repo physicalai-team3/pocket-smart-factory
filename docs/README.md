@@ -11,7 +11,7 @@ Docker 마이크로서비스 파이프라인(C1~C4)이 과자를 분할·판정�
 | [03-messages.md](03-messages.md) | **메시지 계약** (WebSocket / HTTP / JSON 스키마) |
 | [04-deployment.md](04-deployment.md) | cloudflared 무료 터널 배포, 실행 방법, 트러블슈팅 |
 | [05-detection.md](05-detection.md) | CPU 환경 추론 전략, 원형도/볼록도 판정, 추적·카운트, 평가 |
-| [06-team-plan.md](06-team-plan.md) | 2인 역할 분담, 일정, Git 규칙, 완료 기준 |
+| [06-team-plan.md](06-team-plan.md) | 3인 역할 분담, 일정, Git 규칙, 완료 기준 |
 
 ## 한 줄 요약
 

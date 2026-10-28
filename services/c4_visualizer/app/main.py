@@ -1,6 +1,6 @@
 """C4 Visualizer — 추적, 검사선 카운트, 결과 마킹. 상태 보유, 반드시 1개.
 
-명세: docs/02-containers.md#c4-visualizer--담당-b, 로직: docs/05-detection.md §5
+명세: docs/02-containers.md#c4-visualizer, 로직: docs/05-detection.md §5
 메시지: docs/03-messages.md §4.3, §4.4
 """
 import os

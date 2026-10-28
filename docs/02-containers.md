@@ -1,12 +1,17 @@
 # 02. 컨테이너별 명세
 
-> 담당: **A** = 나 (인프라/웹/C1/C2), **B** = 팀원 (비전/C3/C4/평가)
+> 담당자는 [06-team-plan.md](06-team-plan.md#1-역할-분담)를 보세요 (A 인프라·스트리밍 / B 결과·화면 / C 비전 모델).
+>
+> | 구성요소 | web(nginx) | cloudflared | C1 | C2 | phone.html | 대시보드 index.html | C4 | C3 | tools |
+> |---|---|---|---|---|---|---|---|---|---|
+> | 담당 | A | A | A | A | A | B | B | C | replay A · eval/models C |
+>
 > 모든 Python 서비스: `python:3.11-slim` + FastAPI + uvicorn. 빌드 컨텍스트는 repo 루트(`shared/` 복사 목적).
 > 모든 서비스는 `GET /health` → `{"status":"ok","service":"<name>"}` 를 제공합니다.
 
 ---
 
-## web (nginx) — 담당 A
+## web (nginx)
 
 | 항목 | 내용 |
 |---|---|
@@ -27,7 +32,7 @@
 
 ---
 
-## cloudflared — 담당 A
+## cloudflared
 
 | 항목 | 내용 |
 |---|---|
@@ -39,7 +44,7 @@
 
 ---
 
-## C1 Gateway — 담당 A
+## C1 Gateway
 
 | 항목 | 내용 |
 |---|---|
@@ -72,7 +77,7 @@
 
 ---
 
-## C2 Preprocess — 담당 A
+## C2 Preprocess
 
 | 항목 | 내용 |
 |---|---|
@@ -92,7 +97,7 @@
 
 ---
 
-## C3 Inference — 담당 B
+## C3 Inference
 
 | 항목 | 내용 |
 |---|---|
@@ -128,7 +133,7 @@
 
 ---
 
-## C4 Visualizer — 담당 B
+## C4 Visualizer
 
 | 항목 | 내용 |
 |---|---|
@@ -158,7 +163,7 @@
 
 ---
 
-## tools/ — 담당 B (replay는 A)
+## tools/
 
 | 파일 | 용도 |
 |---|---|

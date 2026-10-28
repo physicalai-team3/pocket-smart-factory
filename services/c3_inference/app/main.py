@@ -1,6 +1,6 @@
 """C3 Inference — 과자 마스크 + 원형도/볼록도 판정. 무상태, 복제 가능.
 
-명세: docs/02-containers.md#c3-inference--담당-b, 로직: docs/05-detection.md
+명세: docs/02-containers.md#c3-inference, 로직: docs/05-detection.md
 메시지: docs/03-messages.md §4.2
 """
 import os
