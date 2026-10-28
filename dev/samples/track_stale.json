@@ -1,0 +1,14 @@
+{
+  "session": "k3x9q2ab",
+  "seq": 41,
+  "stale": true,
+  "counts": {
+    "total": 37,
+    "ok": 26,
+    "ng": 11
+  },
+  "tracks": [],
+  "events": [],
+  "image_jpeg_b64": null,
+  "proc_ms": 0.0
+}

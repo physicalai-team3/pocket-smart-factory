@@ -1,0 +1,11 @@
+{
+  "session": "k3x9q2ab",
+  "seq": 42,
+  "mode": "fast",
+  "backend": "mock",
+  "replica": "c3-sample",
+  "w": 960,
+  "h": 328,
+  "infer_ms": 14.2,
+  "objects": []
+}

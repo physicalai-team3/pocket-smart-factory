@@ -1,0 +1,51 @@
+{
+  "type": "result",
+  "seq": 42,
+  "w": 960,
+  "h": 328,
+  "counts": {
+    "total": 37,
+    "ok": 26,
+    "ng": 11
+  },
+  "tracks": [
+    {
+      "track_id": 88,
+      "bbox": [
+        560,
+        140,
+        57,
+        57
+      ],
+      "verdict": "ng",
+      "counted": false,
+      "needs_precise": false
+    },
+    {
+      "track_id": 89,
+      "bbox": [
+        400,
+        30,
+        57,
+        57
+      ],
+      "verdict": "ok",
+      "counted": false,
+      "needs_precise": false
+    }
+  ],
+  "events": [
+    {
+      "type": "counted",
+      "track_id": 85,
+      "verdict": "ok",
+      "seq": 42
+    }
+  ],
+  "latency_ms": {
+    "c2": 9,
+    "c3": 22,
+    "c4": 8,
+    "total": 61
+  }
+}
