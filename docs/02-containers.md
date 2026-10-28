@@ -27,7 +27,8 @@
 | `/sim/` | `web/sim/index.html` | 과제 시뮬레이터 원본 |
 
 주의:
-- C3 복제본은 nginx 시작 시점에 DNS로 IP를 찾습니다. **C3 개수를 바꾸면 `docker compose restart web`** 을 실행해야 합니다.
+- C3 복제본은 `resolver 127.0.0.11` + `server ... resolve`(nginx 1.27.3+)로 10초마다 다시 조회합니다. 그래서 이미지를 `nginx:1.27.5-alpine` 으로 고정했고, C3 개수를 바꿔도 `restart web` 이 필요 없습니다.
+- C3 풀은 `least_conn` 입니다. 오래 걸리는 precise 요청을 처리 중인 복제본을 피해 fast 프레임을 보냅니다.
 - WebSocket 프록시에는 `Upgrade`/`Connection` 헤더와 `proxy_read_timeout 3600s`가 필요합니다.
 
 ---
@@ -79,6 +80,14 @@
 | `PRECISE_POLICY` | `uncertain` | `uncertain` \| `interval` \| `off` |
 | `PRECISE_INTERVAL_MS` | `300` | precise 요청 사이 최소 간격 |
 | `STAGE_TIMEOUT_MS` | `3000` | 단계별 HTTP 타임아웃 |
+| `PRECISE_TIMEOUT_MS` | `10000` | precise 의 C3 호출만 따로 (CPU SAM 2 는 2~5초) |
+| `C3_PRECISE_URL` | (`C3_URL`) | precise 전용 C3 주소. 공유 풀에서는 SAM 2 가 fast 프레임을 막는다 (스텁 실측: fps_out 10 → 2.4) |
+| `TARGET_FPS` | `10` | 폰 기본 전송 fps. 드롭률 30% 초과 시 `throttle` 로 낮추고, 드롭이 없으면 1씩 복구 |
+| `SESSION_TTL_S` | `600` | 폰·대시보드가 모두 끊긴 세션을 지우기까지 (C4 `DELETE` 호출) |
+
+구현 메모 (`services/c1_gateway/app/`): `main.py` 라우트·WebSocket·백그라운드 루프, `pipeline.py` C2→C3→C4 와 precise 판단, `state.py` 세션·지표, `tunnel.py` 공개 URL 조회.
+- ROI 편집 중 원본 보기: 대시보드가 먼저 `{"type":"roi","points":null}` 을 보내면 다음 프레임부터 원본이 보이고, 4점을 찍어 다시 보낸다. 별도 메시지는 없다.
+- `stats` 에는 계약 필드 외에 `stale`, `precise.calls`, `errors.envelope`(0 이 아닐 때) 가 더 들어간다 (추가 필드라 기존 소비자에 영향 없음, 3인 리뷰 때 계약 반영 여부 결정).
 
 ---
 
@@ -95,7 +104,16 @@
 1. JPEG 디코드 (실패하면 422)
 2. ROI가 있으면 4점 → `cv2.getPerspectiveTransform` → `warpPerspective`로 **시뮬레이터 캔버스를 정면으로 편 영상**을 만듭니다(원근 때문에 원형도가 떨어지는 문제를 해결).
 3. 긴 변을 `TARGET_WIDTH`(기본 960)로 리사이즈. 라인 3개를 한 화면에 담으면 640px에서는 과자 지름이 약 35px까지 작아지기 때문입니다.
-4. (선택) 밝기 정규화: CLAHE (시뮬레이터 "조명 불균일" 대응)
+4. (선택) 밝기 정규화: CLAHE (시뮬레이터 "조명 불균일" 대응). `CLAHE_CLIP=0` 이면 끔, 켤 때 2.0 (OpenCV 기본값 40은 너무 강함)
+
+ROI 보정 결과의 가로세로 비율은 변 길이 평균이 아니라 **두 소실점에서 초점거리를 추정해 실제 사각형 비율을 복원**합니다 (Zhang & He, whiteboard scanning). 합성 카메라 200장(기울기 ±15°)에서 비율 오차 p95: 변 평균 2.4% → 이 방법 0.01%. 정면 촬영처럼 소실점이 없으면 변 평균으로 대신합니다.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `TARGET_WIDTH` | `960` | 출력 긴 변 (요청 헤더 `X-Target-Width` 로 덮어쓰기) |
+| `C2_JPEG_QUALITY` | `85` | 출력 JPEG 품질 |
+| `CLAHE_CLIP` | `0` | 0 = 끔 |
+| `CV_THREADS` | `2` | `cv2.setNumThreads` (시작 시 1회) |
 5. JPEG(q=85)로 다시 인코딩해서 반환하고, 출력 크기를 헤더로 알려줍니다.
 
 엔드포인트: `POST /preprocess` — [03-messages.md §4.1](03-messages.md)
