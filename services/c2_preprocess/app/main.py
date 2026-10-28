@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 app = FastAPI(title="c2-preprocess")
 
-TARGET_WIDTH = int(os.getenv("TARGET_WIDTH", "640"))
+TARGET_WIDTH = int(os.getenv("TARGET_WIDTH", "960"))
 
 
 @app.get("/health")

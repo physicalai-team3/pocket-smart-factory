@@ -16,7 +16,8 @@ C2_URL = os.getenv("C2_URL", "http://c2-preprocess:8002")
 C3_URL = os.getenv("C3_URL", "http://web:8090")
 C4_URL = os.getenv("C4_URL", "http://c4-visualizer:8004")
 MAX_INFLIGHT = int(os.getenv("MAX_INFLIGHT", "4"))
-PRECISE_INTERVAL_MS = int(os.getenv("PRECISE_INTERVAL_MS", "700"))
+PRECISE_POLICY = os.getenv("PRECISE_POLICY", "uncertain")  # uncertain | interval | off
+PRECISE_INTERVAL_MS = int(os.getenv("PRECISE_INTERVAL_MS", "300"))
 STAGE_TIMEOUT_MS = int(os.getenv("STAGE_TIMEOUT_MS", "3000"))
 
 
@@ -66,5 +67,9 @@ async def ws_dashboard(ws: WebSocket):
 
 
 async def run_pipeline(session: str, seq: int, jpeg: bytes, mode: str) -> None:
-    """C2 /preprocess → C3 /infer → C4 /track → 대시보드 푸시. 실패 시 드롭."""
+    """C2 /preprocess → C3 /infer → C4 /track → 대시보드 푸시. 실패 시 드롭.
+
+    precise_policy=uncertain: 직전 C4 응답에 needs_precise 트랙이 있고 precise 슬롯이 비면
+    같은 프레임을 mode=precise 로도 보낸다 (fast 처리는 그대로 진행).
+    """
     # TODO

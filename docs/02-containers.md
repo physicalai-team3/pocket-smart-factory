@@ -57,7 +57,11 @@
 2. **공개 URL 확인**: `PUBLIC_URL` 환경변수가 있으면 그 값을, 없으면 `CLOUDFLARED_METRICS/quicktunnel`을 주기적으로 조회해 씁니다(URL이 바뀌면 대시보드에 `session` 메시지를 다시 보냅니다).
 3. **폰 수신**: `/ws/phone`에서 바이너리 프레임을 받고 백프레셔 정책으로 드롭합니다.
 4. **오케스트레이션**: 프레임마다 비동기 task를 만들어 C2 → C3 → C4를 호출합니다(`httpx.AsyncClient`, 타임아웃 적용).
-5. **precise 스케줄링**: 마지막 precise 요청 후 `PRECISE_INTERVAL_MS`가 지났고 진행 중인 precise 요청이 없으면 그 프레임을 `mode=precise`로 보냅니다.
+5. **precise 스케줄링** (`precise_policy`):
+   - `uncertain` (기본): 직전 C4 응답의 `tracks` 중 **`needs_precise=true`가 하나라도 있고**, 진행 중인 precise 요청이 없고, 마지막 precise 후 `PRECISE_INTERVAL_MS`가 지났으면 다음 프레임을 `mode=precise`로 보냅니다.
+   - `interval`: 위 조건에서 `needs_precise` 조건만 뺍니다(비교 실험용).
+   - `off`: precise를 보내지 않습니다.
+   - precise 프레임도 fast 결과가 필요하므로 C3는 precise 요청 안에서 fast 후보를 먼저 구합니다. C1은 **같은 프레임을 fast로도 보내** 추적이 끊기지 않게 합니다.
 6. **푸시**: C4 결과를 대시보드 WS로 보내고, 1초마다 `stats`를 폰과 대시보드에 보냅니다.
 7. **설정 보관**: 세션별 `SessionConfig`(ROI, 검사선, 임계값)를 갖고 있다가 C2·C3·C4 요청에 실어 보냅니다. `reset`은 C4 `/reset`으로 전달합니다.
 
@@ -72,7 +76,8 @@
 | `C3_URL` | `http://web:8090` | nginx 내부 LB |
 | `C4_URL` | `http://c4-visualizer:8004` | |
 | `MAX_INFLIGHT` | `4` | 동시에 처리 중인 프레임 상한 |
-| `PRECISE_INTERVAL_MS` | `700` | precise 요청 최소 간격 (0이면 precise 끔) |
+| `PRECISE_POLICY` | `uncertain` | `uncertain` \| `interval` \| `off` |
+| `PRECISE_INTERVAL_MS` | `300` | precise 요청 사이 최소 간격 |
 | `STAGE_TIMEOUT_MS` | `3000` | 단계별 HTTP 타임아웃 |
 
 ---
@@ -89,7 +94,7 @@
 책임:
 1. JPEG 디코드 (실패하면 422)
 2. ROI가 있으면 4점 → `cv2.getPerspectiveTransform` → `warpPerspective`로 **시뮬레이터 캔버스를 정면으로 편 영상**을 만듭니다(원근 때문에 원형도가 떨어지는 문제를 해결).
-3. 긴 변을 `TARGET_WIDTH`(기본 640)로 리사이즈
+3. 긴 변을 `TARGET_WIDTH`(기본 960)로 리사이즈. 라인 3개를 한 화면에 담으면 640px에서는 과자 지름이 약 35px까지 작아지기 때문입니다.
 4. (선택) 밝기 정규화: CLAHE (시뮬레이터 "조명 불균일" 대응)
 5. JPEG(q=85)로 다시 인코딩해서 반환하고, 출력 크기를 헤더로 알려줍니다.
 
@@ -112,7 +117,7 @@
 |---|---|---|
 | `mock` | 고정된 가짜 객체 2개 반환 | A가 C3 없이 파이프라인 개발할 때 |
 | `fast` | OpenCV: HSV 임계값 → morphology → `findContours` → 특징 | 매 프레임 |
-| `precise` | fast로 bbox 후보 → SAM 2 `SAM2ImagePredictor`에 box prompt 일괄 입력 → 마스크 → 특징 | 저빈도 |
+| `precise` | fast로 bbox 후보 → SAM 2 `SAM2ImagePredictor`에 box prompt 일괄 입력 → 마스크 → 특징 | 판정이 애매한 과자가 있을 때만 |
 
 판정 (객체 단위, 무상태):
 - `circularity = 4πA / P²`, `solidity = A / hull_area`
@@ -147,15 +152,18 @@
 1. **순서 검사**: `mode=fast` 결과의 `seq`가 세션의 `last_seq` 이하이면 추적에 쓰지 않습니다(`stale=true`로 응답). `mode=precise` 결과는 늦게 오는 것이 정상이므로 위치 이력에서 해당 seq를 찾아 트랙에 붙입니다.
 2. **추적**: centroid + IoU 매칭으로 트랙 ID를 유지합니다. `MAX_MISSES` 프레임 동안 안 보이면 트랙을 삭제합니다.
 3. **판정 누적**: 트랙마다 fast 투표와 precise 투표를 쌓습니다. 최종 판정은 precise 투표가 있으면 그것을 우선합니다.
-4. **카운트**: 트랙 centroid가 검사선(`line_x` 비율, 방향 `rtl`/`ltr`)을 넘을 때 **1회** 확정 카운트합니다.
-5. **마킹**: 원본(전처리된) 프레임에 윤곽선(정상 초록 / 불량 빨강 / 미확정 노랑), 트랙 ID, 검사선, 카운트를 그려 JPEG로 반환합니다.
+4. **정밀 판정 요청**: 아래 조건을 **모두** 만족하는 트랙에 `needs_precise=true`를 붙여 응답합니다. C1은 이 값을 보고 SAM 2를 돌립니다.
+   - 아직 카운트되지 않았고(`counted=false`), 이번 프레임에서 `partial=false`, precise 투표가 0개
+   - 그리고 다음 중 하나: 최근 특징값이 `|circularity - circ_th| < circ_band` 또는 `|solidity - solid_th| < solid_band` / fast 투표가 갈림(소수 쪽이 30% 이상)
+5. **카운트**: 트랙 centroid가 검사선(`line_x` 비율, 방향 `rtl`/`ltr`)을 넘을 때 **1회** 확정 카운트합니다.
+6. **마킹**: 원본(전처리된) 프레임에 윤곽선(정상 초록 / 불량 빨강 / 미확정 노랑), 트랙 ID, 검사선, 카운트를 그려 JPEG로 반환합니다.
 
 엔드포인트: `POST /track`, `POST /reset/{session}`, `DELETE /sessions/{session}` — [03-messages.md §4.3](03-messages.md)
 
 환경변수:
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `LINE_X` | `0.5` | 검사선 위치 (프레임 폭 비율) |
+| `LINE_X` | `0.34` | 검사선 위치 (프레임 폭 비율). 시뮬레이터 검사선(`SCAN=0.34`)과 같은 값. ROI로 캔버스만 잘랐을 때 의미가 맞음 |
 | `DIRECTION` | `rtl` | 시뮬레이터 진행 방향은 ← (right-to-left) |
 | `MAX_MISSES` | `5` | |
 | `MATCH_MAX_DIST` | `0.6` | 매칭 허용 거리 (객체 지름 대비 비율) |

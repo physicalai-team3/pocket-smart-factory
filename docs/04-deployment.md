@@ -92,4 +92,4 @@ docker compose logs -f c4-visualizer
 | C3 복제본 하나만 일함 | scale 후 `docker compose restart web`을 안 한 경우입니다 |
 | 복제본을 늘렸는데 더 느려짐 | `OMP_NUM_THREADS`가 커서 스레드끼리 다투는 상황입니다. 코어 수 / 복제본 수로 맞추세요 |
 | WS가 60초마다 끊김 | nginx `proxy_read_timeout` 확인. 폰과 대시보드는 20초마다 `{"type":"ping"}`을 보냅니다 |
-| 지연이 큼 (>1초) | 폰 → Cloudflare → 노트북 왕복 구간입니다. 전송 해상도 640px, JPEG q=0.6~0.7 유지. 같은 Wi-Fi에서 `http://<노트북IP>:8080`은 카메라가 안 되므로 터널을 유지하세요 |
+| 지연이 큼 (>1초) | 폰 → Cloudflare → 노트북 왕복 구간입니다. 전송 해상도 960px 이하, JPEG q=0.6~0.7 유지 (그래도 느리면 800px로 낮추기). 같은 Wi-Fi에서 `http://<노트북IP>:8080`은 카메라가 안 되므로 터널을 유지하세요 |

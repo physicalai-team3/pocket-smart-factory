@@ -25,6 +25,7 @@ async def health():
 async def track(req: TrackRequest):
     # TODO: fast  → seq <= last_seq 이면 stale, 아니면 tracker.update() → 검사선 통과 카운트 → 마킹
     #       precise → history[seq] 와 IoU 매칭해 precise 투표만 반영 (image 없음)
+    #       트랙마다 needs_precise 계산 (docs/02-containers.md C4 4번)
     raise HTTPException(501, "TODO")
 
 

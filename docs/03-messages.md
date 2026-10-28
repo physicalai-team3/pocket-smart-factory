@@ -105,14 +105,14 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 ```json
 { "type": "hello",
   "device": { "ua": "Mozilla/5.0 ...", "w": 1280, "h": 720 },
-  "send_w": 640, "send_h": 360, "target_fps": 10 }
+  "send_w": 960, "send_h": 540, "target_fps": 10 }
 ```
 
 **폰 → C1, 바이너리 (프레임마다)** — 봉투 header:
 ```json
-{ "type": "frame", "client_seq": 512, "ts_capture": 1761620001234.5, "w": 640, "h": 360 }
+{ "type": "frame", "client_seq": 512, "ts_capture": 1761620001234.5, "w": 960, "h": 540 }
 ```
-+ JPEG (q≈0.7). 폰은 `ws.bufferedAmount > 256KB`이면 이번 프레임을 건너뜁니다.
++ JPEG (q≈0.7, 긴 변 960px). 라인 3개를 한 화면에 담으면 과자가 작아지므로 640px보다 크게 보냅니다. 폰은 `ws.bufferedAmount > 256KB`이면 이번 프레임을 건너뜁니다.
 
 **C1 → 폰, 텍스트**
 ```json
@@ -143,10 +143,10 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 {
   "type": "result",
   "seq": 1042,
-  "w": 640, "h": 360,
+  "w": 960, "h": 332,
   "counts": { "total": 37, "ok": 26, "ng": 11 },
   "tracks": [
-    { "track_id": 88, "bbox": [412, 40, 76, 77], "verdict": "ng", "counted": false }
+    { "track_id": 88, "bbox": [412, 40, 76, 77], "verdict": "ng", "counted": false, "needs_precise": true }
   ],
   "events": [
     { "type": "counted", "track_id": 85, "verdict": "ok", "seq": 1042 }
@@ -158,7 +158,7 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 
 **대시보드 → C1, 텍스트**
 ```json
-{ "type": "config", "config": { "line_x": 0.5, "direction": "rtl", "circ_th": 0.8, "solid_th": 0.95, "precise_interval_ms": 700 } }
+{ "type": "config", "config": { "line_x": 0.34, "direction": "rtl", "circ_th": 0.8, "solid_th": 0.95, "precise_policy": "uncertain" } }
 { "type": "roi", "points": [[0.08,0.12],[0.93,0.10],[0.95,0.88],[0.06,0.90]] }
 { "type": "roi", "points": null }
 { "type": "reset" }
@@ -171,11 +171,14 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 | 필드 | 타입 | 기본값 | 사용처 |
 |---|---|---|---|
 | `roi` | `[[x,y]×4] \| null` | `null` | C2 (`X-Roi`) |
-| `line_x` | float 0~1 | 0.5 | C4 |
+| `line_x` | float 0~1 | 0.34 (시뮬레이터 검사선과 동일) | C4 |
 | `direction` | `"rtl" \| "ltr"` | `"rtl"` | C4 |
-| `circ_th` | float | 0.80 | C3 (`X-Circ-Th`) |
-| `solid_th` | float | 0.95 | C3 (`X-Solid-Th`) |
-| `precise_interval_ms` | int | 700 (0=끔) | C1 |
+| `circ_th` | float | 0.80 | C3 (`X-Circ-Th`), C4 |
+| `solid_th` | float | 0.95 | C3 (`X-Solid-Th`), C4 |
+| `precise_policy` | `"uncertain" \| "interval" \| "off"` | `"uncertain"` | C1 |
+| `precise_interval_ms` | int | 300 | C1 (precise 요청 최소 간격) |
+| `circ_band` | float | 0.05 | C4 (`needs_precise` 판단) |
+| `solid_band` | float | 0.02 | C4 (`needs_precise` 판단) |
 
 → 이 구조 덕분에 **C2와 C3는 상태 없이** 동작합니다. 설정은 C1이 갖고 있고, 요청마다 함께 전달됩니다.
 
@@ -202,12 +205,12 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
 | 추가 헤더 | 예 | 설명 |
 |---|---|---|
 | `X-Roi` | `0.08,0.12,0.93,0.10,0.95,0.88,0.06,0.90` | 없으면 원근 보정 안 함 |
-| `X-Target-Width` | `640` | 생략하면 C2 기본값 |
+| `X-Target-Width` | `960` | 생략하면 C2 기본값 |
 
 응답 `200`: `Content-Type: image/jpeg`, body = 처리된 JPEG
 | 응답 헤더 | 예 |
 |---|---|
-| `X-Width` / `X-Height` | `640` / `360` |
+| `X-Width` / `X-Height` | `960` / `332` (ROI로 캔버스만 잘랐을 때) |
 | `X-Roi-Applied` | `1` / `0` |
 | `X-Proc-Ms` | `8.4` |
 
@@ -228,7 +231,7 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
   "mode": "fast",
   "backend": "opencv",
   "replica": "c3-inference-2",
-  "w": 640, "h": 360,
+  "w": 960, "h": 332,
   "infer_ms": 14.2,
   "objects": [
     {
@@ -259,7 +262,8 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
   "session": "k3x9q2ab",
   "seq": 1042,
   "mode": "fast",
-  "config": { "line_x": 0.5, "direction": "rtl" },
+  "config": { "line_x": 0.34, "direction": "rtl",
+              "circ_th": 0.80, "solid_th": 0.95, "circ_band": 0.05, "solid_band": 0.02 },
   "infer": { "...InferResult 그대로..." },
   "image_jpeg_b64": "/9j/4AAQ..."
 }
@@ -275,13 +279,15 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
   "counts": { "total": 37, "ok": 26, "ng": 11 },
   "tracks": [
     { "track_id": 88, "bbox": [412,40,76,77], "verdict": "ng", "counted": false,
-      "votes": { "fast_ok": 2, "fast_ng": 5, "precise_ok": 0, "precise_ng": 1 } }
+      "votes": { "fast_ok": 2, "fast_ng": 5, "precise_ok": 0, "precise_ng": 1 },
+      "needs_precise": false }
   ],
   "events": [ { "type": "counted", "track_id": 85, "verdict": "ok", "seq": 1042 } ],
   "image_jpeg_b64": "/9j/4AAQ...",
   "proc_ms": 7.9
 }
 ```
+- `needs_precise=true`: 이 트랙은 판정이 애매하니 SAM 2로 다시 봐달라는 요청입니다. 조건은 [02-containers.md C4](02-containers.md#c4-visualizer) 4번을 보세요. `precise_policy=uncertain`일 때 C1은 이 값이 하나라도 true면 다음 프레임을 `mode=precise`로도 보냅니다.
 - `stale=true`: 이미 더 최신 fast 프레임을 처리한 상태입니다. C1은 이 결과를 **대시보드에 보내지 않습니다**.
 - precise 응답에는 `image_jpeg_b64: null`이 옵니다. C1은 대시보드로 영상을 보내지 않고, 다음 `result`에 갱신된 카운트가 반영됩니다.
 

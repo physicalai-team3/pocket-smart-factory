@@ -25,13 +25,20 @@ def unpack_envelope(data: bytes) -> tuple[dict, bytes]:
 
 
 # ── 세션 설정 (C1 보관, 단계별 요청에 실어 보냄) ──
+PrecisePolicy = Literal["uncertain", "interval", "off"]
+
+
 class SessionConfig(BaseModel):
     roi: Optional[list[Point]] = None  # 좌상→우상→우하→좌하, 원본 프레임 비율
-    line_x: float = Field(0.5, ge=0, le=1)
+    line_x: float = Field(0.34, ge=0, le=1)  # 시뮬레이터 검사선(SCAN=0.34)과 일치
     direction: Literal["rtl", "ltr"] = "rtl"
     circ_th: float = 0.80
     solid_th: float = 0.95
-    precise_interval_ms: int = 700
+    # uncertain: C4 가 needs_precise 를 올린 트랙이 있을 때만 / interval: 주기적으로 / off
+    precise_policy: PrecisePolicy = "uncertain"
+    precise_interval_ms: int = 300  # precise 요청 사이 최소 간격
+    circ_band: float = 0.05  # |circularity - circ_th| < band 이면 애매
+    solid_band: float = 0.02
 
 
 class Counts(BaseModel):
@@ -68,8 +75,13 @@ class InferResult(BaseModel):
 
 # ── C4 /track ──
 class TrackConfig(BaseModel):
-    line_x: float = 0.5
+    line_x: float = 0.34
     direction: Literal["rtl", "ltr"] = "rtl"
+    # needs_precise 판단용 (SessionConfig 에서 그대로 복사)
+    circ_th: float = 0.80
+    solid_th: float = 0.95
+    circ_band: float = 0.05
+    solid_band: float = 0.02
 
 
 class TrackRequest(BaseModel):
@@ -94,6 +106,8 @@ class TrackOut(BaseModel):
     verdict: Verdict
     counted: bool
     votes: Votes = Votes()
+    # 미카운트 · 비partial · precise 투표 없음 · (특징값이 임계값 band 안 or fast 투표가 갈림)
+    needs_precise: bool = False
 
 
 class CountedEvent(BaseModel):
