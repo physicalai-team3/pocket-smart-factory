@@ -288,8 +288,8 @@
     <section class="grp">
       <h2>판정 임계값</h2>
       <div class="ctl">
-        <label for="circ_th"><span class="nm">원형도 하한</span><span class="val" id="circ_th-v">0.80</span></label>
-        <input type="range" id="circ_th" data-cfg="circ_th" min="0.50" max="1.00" step="0.01" value="0.80">
+        <label for="circ_th"><span class="nm">원형도 하한</span><span class="val" id="circ_th-v">0.800</span></label>
+        <input type="range" id="circ_th" data-cfg="circ_th" min="0.800" max="1.000" step="0.005" value="0.800">
       </div>
       <div class="ctl">
         <label for="solid_th"><span class="nm">볼록도 하한</span><span class="val" id="solid_th-v">0.950</span></label>
@@ -422,7 +422,7 @@
   const hms = t => new Date(t).toTimeString().slice(0, 8);  // 13:29:05
   const fmt = {
     line_x: v => Math.round(v*100) + ' %',
-    circ_th: v => (+v).toFixed(2),
+    circ_th: v => (+v).toFixed(3),
     solid_th: v => (+v).toFixed(3),
     precise_interval_ms: v => Math.round(v) + ' ms',
     circ_band: v => '±' + (+v).toFixed(3),
