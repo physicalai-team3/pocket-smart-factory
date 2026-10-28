@@ -150,7 +150,7 @@ def main():
     ap.add_argument("--width", type=int, default=960, help="C2 TARGET_WIDTH")
     ap.add_argument("--quality", type=int, default=85, help="C2 JPEG 품질")
     ap.add_argument("--iou", type=float, default=0.5)
-    ap.add_argument("--circ-th", type=float, default=0.80, help="현재 임계값 (비교 기준)")
+    ap.add_argument("--circ-th", type=float, default=0.935, help="현재 임계값 (비교 기준)")
     ap.add_argument("--solid-th", type=float, default=0.95)
     ap.add_argument("--csv", help="객체별 특징값을 CSV로 저장 (그래프용)")
     ap.add_argument("--draw", help="판정 결과를 그린 이미지를 저장할 폴더 (정상 초록 / 불량 빨강 / partial 노랑)")

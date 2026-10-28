@@ -26,7 +26,7 @@ C3_BACKEND = os.getenv("C3_BACKEND", "fast")
 SAM2_ENABLED = os.getenv("SAM2_ENABLED", "0") == "1"
 SAM2_CKPT = os.getenv("SAM2_CKPT", "/models/sam2.1_hiera_tiny.pt")
 SAM2_CFG = os.getenv("SAM2_CFG", "configs/sam2.1/sam2.1_hiera_t.yaml")
-CIRC_TH = float(os.getenv("CIRC_TH", "0.80"))
+CIRC_TH = float(os.getenv("CIRC_TH", "0.935"))
 SOLID_TH = float(os.getenv("SOLID_TH", "0.95"))
 
 MODES = ("mock", "fast", "precise")
