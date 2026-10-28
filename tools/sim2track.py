@@ -27,8 +27,14 @@ import cv2
 import numpy as np
 
 VOID_BGR = (27, 24, 20)  # 시뮬레이터 배경 #14181b
-# circ_band·solid_band 는 넣지 않는다: C4 가 계약 기본값(shared/schemas.py TrackConfig)을 쓰게 한다
-DEFAULT_CONFIG = {"line_x": 0.34, "direction": "rtl", "circ_th": 0.80, "solid_th": 0.95}
+try:  # 판정 기준값은 계약 기본값(shared/schemas.py TrackConfig)을 따른다
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from shared.schemas import TrackConfig
+    CIRC_TH, SOLID_TH = TrackConfig().circ_th, TrackConfig().solid_th
+except ImportError:  # pydantic 이 없을 때
+    CIRC_TH, SOLID_TH = 0.80, 0.95
+# circ_band·solid_band 는 넣지 않는다: C4 가 계약 기본값을 쓰게 한다
+DEFAULT_CONFIG = {"line_x": 0.34, "direction": "rtl"}
 
 
 def find_png(labels_path: Path) -> Path | None:
@@ -143,7 +149,8 @@ def build(args) -> tuple[list[dict], dict]:
                 ok, jpg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                 b64 = base64.b64encode(jpg.tobytes()).decode("ascii")
             reqs.append({
-                "session": args.session, "seq": seq, "mode": "fast", "config": DEFAULT_CONFIG,
+                "session": args.session, "seq": seq, "mode": "fast",
+                "config": {**DEFAULT_CONFIG, "circ_th": args.circ_th, "solid_th": args.solid_th},
                 "infer": {"session": args.session, "seq": seq, "mode": "fast", "backend": "sim-truth",
                           "replica": "sim2track", "w": w, "h": h, "infer_ms": 0.0, "objects": objs},
                 "image_jpeg_b64": b64,
@@ -191,8 +198,8 @@ def main():
     ap.add_argument("--miss", type=float, default=0, help="객체를 검출하지 못할 확률 (0~1)")
     ap.add_argument("--skip", type=float, default=0, help="프레임이 드롭될 확률 (0~1, seq 는 건너뜀)")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--circ-th", type=float, default=0.80)
-    ap.add_argument("--solid-th", type=float, default=0.95)
+    ap.add_argument("--circ-th", type=float, default=CIRC_TH, help=f"기본: 계약 기본값 ({CIRC_TH})")
+    ap.add_argument("--solid-th", type=float, default=SOLID_TH, help=f"기본: 계약 기본값 ({SOLID_TH})")
     args = ap.parse_args()
     if args.png and len(args.labels) > 1:
         ap.error("--png 는 labels 가 1개일 때만 쓸 수 있습니다")

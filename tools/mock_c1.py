@@ -263,7 +263,7 @@ def load_frames(labels: list[str]) -> list[dict]:
     frames = []
     for lp in labels:
         a = Namespace(labels=[lp], png=None, width=960, frames=OPTS.frames, dx=OPTS.dx, session="mock", start_seq=0,
-                      defect_from="truth", circ_th=0.8, solid_th=0.95, jitter=1.5, miss=0.05, skip=0, seed=0)
+                      defect_from="truth", circ_th=sim2track.CIRC_TH, solid_th=sim2track.SOLID_TH, jitter=1.5, miss=0.05, skip=0, seed=0)
         reqs, _ = sim2track.build(a)
         for r in reqs:
             r["_truth"] = [o["defect"] for o in r["infer"]["objects"]]
