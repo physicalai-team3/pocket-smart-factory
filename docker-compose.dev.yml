@@ -1,0 +1,33 @@
+# 개발용 오버라이드 — C3·C4 자리에 계약을 지키는 스텁(dev/stubs/)을 끼운다.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# 자동으로 합쳐지는 docker-compose.override.yml 이 아니라 이 이름을 쓰는 이유:
+# 통합할 때 -f 를 빼기만 하면 실제 서비스로 돌아가고, 실수로 스텁이 섞이지 않는다.
+#
+# 스텁을 일부러 나쁘게 만들기 (예: STUB_LATENCY_MS=300 docker compose -f ... up -d c3-inference)
+#   STUB_LATENCY_MS / STUB_JITTER_MS / STUB_PRECISE_LATENCY_MS / STUB_FAIL_RATE / STUB_PRECISE / STUB_OBJECTS
+#   STUB_NEEDS_PRECISE_EVERY (C4)
+services:
+  c3-inference:
+    build:
+      context: .
+      dockerfile: dev/stubs/c3_stub/Dockerfile
+    environment:
+      STUB_LATENCY_MS: ${STUB_LATENCY_MS:-15}
+      STUB_JITTER_MS: ${STUB_JITTER_MS:-10}
+      STUB_PRECISE_LATENCY_MS: ${STUB_PRECISE_LATENCY_MS:-2000}
+      STUB_FAIL_RATE: ${STUB_FAIL_RATE:-0}
+      STUB_PRECISE: ${STUB_PRECISE:-1}
+      STUB_OBJECTS: ${STUB_OBJECTS:-detect}
+
+  c4-visualizer:
+    build:
+      context: .
+      dockerfile: dev/stubs/c4_stub/Dockerfile
+    environment:
+      STUB_NEEDS_PRECISE_EVERY: ${STUB_NEEDS_PRECISE_EVERY:-0}
+    ports:
+      - "8004:8004"   # contract_check.py · curl 디버깅용 (개발 중에만)
+
+  c2-preprocess:
+    ports:
+      - "8002:8002"

@@ -1,15 +1,26 @@
 # 구조와 포트: docs/01-architecture.md, 환경변수: docs/02-containers.md
+# 개발 중 C3·C4 를 스텁으로 바꾸려면: docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 name: pocket-smart-factory
+
+# 모든 Python 서비스는 GET /health 를 제공한다. 이미지에 curl 이 없어 python 으로 확인한다.
+x-health: &health
+  interval: 5s
+  timeout: 3s
+  retries: 5
+  start_period: 10s
 
 services:
   web:
-    image: nginx:1.27-alpine
+    image: nginx:1.27.5-alpine   # upstream `server ... resolve` 는 1.27.3+ 필요 → 태그를 고정
     ports:
       - "8080:80"            # 대시보드: http://localhost:8080  (8090 내부 LB는 공개하지 않음)
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./web:/usr/share/nginx/html:ro
-    depends_on: [c1-gateway, c3-inference]
+    depends_on:
+      c1-gateway: { condition: service_healthy }
+      c3-inference: { condition: service_started }
+    restart: unless-stopped
 
   cloudflared:
     image: cloudflare/cloudflared:2026.10.5
@@ -25,11 +36,21 @@ services:
       C2_URL: http://c2-preprocess:8002
       C3_URL: http://web:8090
       C4_URL: http://c4-visualizer:8004
-    depends_on: [c2-preprocess, c4-visualizer]
+    depends_on:
+      c2-preprocess: { condition: service_healthy }
+      c4-visualizer: { condition: service_healthy }
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/public-url', timeout=2)"]
+    restart: unless-stopped
 
   c2-preprocess:
     build: { context: ., dockerfile: services/c2_preprocess/Dockerfile }
     env_file: .env
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health', timeout=2)"]
+    restart: unless-stopped
 
   c3-inference:
     build:
@@ -42,7 +63,15 @@ services:
       - ./models:/models:ro
     deploy:
       replicas: ${C3_REPLICAS:-2}
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health', timeout=2)"]
+    restart: unless-stopped
 
   c4-visualizer:
     build: { context: ., dockerfile: services/c4_visualizer/Dockerfile }
     env_file: .env
+    healthcheck:
+      <<: *health
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8004/health', timeout=2)"]
+    restart: unless-stopped

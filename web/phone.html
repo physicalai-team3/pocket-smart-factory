@@ -2,21 +2,206 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Camera Uplink</title>
+<!-- 폰 송출 페이지 (담당 A) — docs/03-messages.md §3.1
+     URL 옵션: ?s=<session> (필수)  &fps=10  &w=960 (긴 변)  &q=0.7 (JPEG 품질) -->
+<style>
+  :root { --bg:#111417; --fg:#e8eaed; --dim:#9aa0a6; --ok:#4caf7d; --warn:#e8b21f; --bad:#e5534b; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+               font:15px/1.4 system-ui, -apple-system, "Noto Sans KR", sans-serif; }
+  main { display:flex; flex-direction:column; height:100%; padding:12px; gap:10px;
+         padding-bottom:max(12px, env(safe-area-inset-bottom)); }
+  video { width:100%; flex:1; min-height:0; object-fit:contain; background:#000; border-radius:8px; }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--dim); flex:none; }
+  .dot.ok { background:var(--ok); } .dot.warn { background:var(--warn); } .dot.bad { background:var(--bad); }
+  #status { flex:1; }
+  .grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; }
+  .cell { background:#1c2126; border-radius:6px; padding:6px 8px; }
+  .k { font-size:11px; color:var(--dim); } .v { font:600 17px ui-monospace, monospace; }
+  button { font:600 17px system-ui, sans-serif; padding:14px; border:0; border-radius:8px;
+           background:#1f6feb; color:#fff; width:100%; }
+  button.stop { background:#3a3f45; }
+  .hint { color:var(--dim); font-size:12px; }
+</style>
 </head>
 <body>
-  <!-- 폰 송출 페이지 (담당 A) — docs/03-messages.md §3.1
-       TODO
-       - ?s=<session> 읽기
-       - getUserMedia({video:{facingMode:"environment", width:{ideal:1280}}})
-         <video playsinline muted autoplay> (iOS 필수)
-       - WS /ws/phone?s= → hello
-       - target_fps 로 canvas 긴 변 960px → toBlob(jpeg, 0.7) → 봉투 pack → ws.send
-         ws.bufferedAmount > 256KB 면 이번 프레임 건너뛰기
-       - welcome / stats / throttle / error 처리, 20초마다 ping
-       - 화면에 송출 fps, 처리 fps, 지연 표시
-  -->
-  <p>TODO: 카메라 송출</p>
+<main>
+  <div class="bar"><span class="dot" id="dot"></span><span id="status">준비</span><span class="hint" id="sid"></span></div>
+  <video id="video" playsinline muted autoplay></video>
+  <div class="grid">
+    <div class="cell"><div class="k">송출 fps</div><div class="v" id="fpsSend">–</div></div>
+    <div class="cell"><div class="k">처리 fps</div><div class="v" id="fpsOut">–</div></div>
+    <div class="cell"><div class="k">지연 ms</div><div class="v" id="lat">–</div></div>
+    <div class="cell"><div class="k">드롭</div><div class="v" id="drop">–</div></div>
+  </div>
+  <button id="btn">카메라 송출 시작</button>
+  <div class="hint">폰을 가로로 들고 시뮬레이터 캔버스(라인 전체)가 화면에 들어오게 하세요. 화면이 꺼지지 않게 유지됩니다.</div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const session = qs.get('s');
+  const LONG_SIDE = parseInt(qs.get('w') || '960', 10);
+  const QUALITY = parseFloat(qs.get('q') || '0.7');
+  const MAX_BUFFERED = 256 * 1024;          // 이보다 쌓이면 이번 프레임은 건너뛴다
+  let targetFps = parseFloat(qs.get('fps') || '10');
+
+  const video = $('video'), btn = $('btn');
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  let stream = null, ws = null, running = false, clientSeq = 0, timer = null, busy = false;
+  let wakeLock = null, retry = 0, sentTimes = [], pingTimer = null, srcW = 0, srcH = 0;
+
+  function status(text, level) {
+    $('status').textContent = text;
+    $('dot').className = 'dot ' + (level || '');
+  }
+
+  // ── 봉투: [uint32 BE 헤더 길이][헤더 JSON][JPEG] (docs/03-messages.md §0) ──
+  function pack(header, jpegBlob) {
+    const h = new TextEncoder().encode(JSON.stringify(header));
+    const len = new Uint8Array(4);
+    new DataView(len.buffer).setUint32(0, h.length);
+    return new Blob([len, h, jpegBlob]);
+  }
+
+  async function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error('카메라를 쓰려면 https:// 주소로 접속해야 합니다 (QR 주소 사용)');
+    }
+    // exact 대신 ideal: 후면 카메라가 없는 기기(노트북)에서도 동작
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+  }
+
+  function cameraError(e) {
+    const names = {
+      NotAllowedError: '카메라 권한이 거부되었습니다. 브라우저 설정에서 허용해 주세요',
+      NotFoundError: '카메라를 찾을 수 없습니다',
+      NotReadableError: '다른 앱이 카메라를 쓰고 있습니다',
+      OverconstrainedError: '요청한 해상도를 지원하지 않습니다'
+    };
+    return names[e.name] || e.message || String(e);
+  }
+
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws/phone?s=${encodeURIComponent(session)}`);
+    ws.binaryType = 'arraybuffer';
+    status('서버 연결 중…', 'warn');
+    ws.onopen = () => {
+      retry = 0;
+      const t = stream.getVideoTracks()[0].getSettings();
+      ws.send(JSON.stringify({ type: 'hello', device: { ua: navigator.userAgent, w: t.width, h: t.height },
+                               send_w: canvas.width, send_h: canvas.height, target_fps: targetFps }));
+      clearInterval(pingTimer);
+      pingTimer = setInterval(() => ws.readyState === 1 && ws.send('{"type":"ping"}'), 20000);
+    };
+    ws.onmessage = ev => {
+      if (typeof ev.data !== 'string') return;
+      const m = JSON.parse(ev.data);
+      if (m.type === 'welcome') { status('송출 중', 'ok'); if (m.target_fps) targetFps = Math.min(targetFps, m.target_fps); schedule(); }
+      else if (m.type === 'stats') {
+        $('fpsOut').textContent = m.fps_out.toFixed(1);
+        $('lat').textContent = m.latency_ms == null ? '–' : Math.round(m.latency_ms);
+        $('drop').textContent = m.dropped;
+      }
+      else if (m.type === 'throttle') { targetFps = m.target_fps; schedule(); }
+      else if (m.type === 'error') status(m.code === 'SESSION_NOT_FOUND' ? '세션이 없습니다. 대시보드의 QR을 다시 스캔하세요'
+                                         : m.code === 'PHONE_REPLACED' ? '다른 폰이 연결되어 송출을 멈췄습니다' : m.message, 'bad');
+    };
+    ws.onclose = ev => {
+      clearInterval(pingTimer);
+      if (!running) return;
+      if (ev.code === 4404 || ev.code === 4409) { stop(false); return; }  // 재연결해도 소용없음
+      const wait = Math.min(10000, 500 * 2 ** retry++);
+      status(`연결 끊김 — ${Math.round(wait / 1000)}초 후 재연결`, 'warn');
+      setTimeout(() => running && connect(), wait);
+    };
+  }
+
+  function sizeCanvas() {
+    const vw = srcW = video.videoWidth, vh = srcH = video.videoHeight;
+    const s =Math.min(1, LONG_SIDE / Math.max(vw, vh));
+    canvas.width = Math.round(vw * s);
+    canvas.height = Math.round(vh * s);
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    if (running) timer = setTimeout(tick, 1000 / targetFps);
+  }
+
+  function tick() {
+    schedule();
+    if (!ws || ws.readyState !== 1 || busy || document.hidden || !video.videoWidth) return;
+    if (ws.bufferedAmount > MAX_BUFFERED) return;          // 네트워크가 못 따라오면 버린다
+    if (video.videoWidth !== srcW || video.videoHeight !== srcH) sizeCanvas();  // 폰 회전 등으로 해상도가 바뀜
+    busy = true;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const ts = Date.now();
+    canvas.toBlob(blob => {
+      busy = false;
+      if (!blob || blob.type !== 'image/jpeg' || ws.readyState !== 1) return;  // 미지원 형식이면 PNG 로 바뀜 → 보내지 않음
+      ws.send(pack({ type: 'frame', client_seq: clientSeq++, ts_capture: ts, w: canvas.width, h: canvas.height }, blob));
+      const now = performance.now();
+      sentTimes.push(now);
+      while (sentTimes.length && sentTimes[0] < now - 2000) sentTimes.shift();
+      $('fpsSend').textContent = (sentTimes.length / 2).toFixed(1);
+    }, 'image/jpeg', QUALITY);
+  }
+
+  async function lockScreen() {
+    try { if ('wakeLock' in navigator && !document.hidden) wakeLock = await navigator.wakeLock.request('screen'); }
+    catch (e) { /* 지원하지 않거나 거부 — 설정에서 자동 잠금을 끄도록 안내 */ }
+  }
+
+  // 페이지가 가려지면 wake lock 이 풀리므로 다시 보일 때 재요청
+  document.addEventListener('visibilitychange', () => { if (running && !document.hidden) lockScreen(); });
+
+  async function start() {
+    btn.disabled = true;
+    try {
+      await startCamera();
+      sizeCanvas();
+      running = true;
+      await lockScreen();
+      connect();
+      btn.textContent = '송출 중지';
+      btn.className = 'stop';
+    } catch (e) {
+      status(cameraError(e), 'bad');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function stop(userAction = true) {
+    running = false;
+    clearTimeout(timer);
+    clearInterval(pingTimer);
+    if (ws && userAction) ws.close(1000);
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    if (wakeLock) wakeLock.release().catch(() => {});
+    wakeLock = null;
+    btn.textContent = '카메라 송출 시작';
+    btn.className = '';
+    if (userAction) status('중지됨');
+  }
+
+  btn.addEventListener('click', () => (running ? stop() : start()));
+  if (!session) { status('세션이 없습니다. 대시보드의 QR을 스캔해서 들어오세요', 'bad'); btn.disabled = true; }
+  else $('sid').textContent = 'session ' + session;
+})();
+</script>
 </body>
 </html>

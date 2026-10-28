@@ -1,0 +1,10 @@
+# 로컬 개발·테스트·도구용 (tools/replay.py, tools/contract_check.py, dev/run_local.py, pytest)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+httpx>=0.27
+pydantic>=2.7
+qrcode[pil]>=7.4
+numpy>=1.26
+opencv-python-headless>=4.9
+websockets>=13
+pytest>=8

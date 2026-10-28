@@ -65,7 +65,7 @@ docker compose up -d --build c3-inference
 ```bash
 # .env 에서 C3_REPLICAS=3, OMP_NUM_THREADS=<코어수/3> 으로 바꾼 뒤
 docker compose up -d c3-inference
-docker compose restart web          # nginx가 새 복제본 IP를 다시 찾도록
+# nginx 가 10초 안에 새 복제본을 찾는다 (resolve). 바로 반영하려면: docker compose restart web
 ```
 대시보드의 `c3_replicas_seen`과 fps로 before/after를 측정합니다 (발표 자료 7쪽 그래프).
 
@@ -89,7 +89,7 @@ docker compose logs -f c4-visualizer
 | iOS에서 영상이 검게 나옴 | `<video playsinline muted autoplay>` 속성이 필요합니다 |
 | QR이 안 뜨고 503 | 터널이 아직 기동 중입니다 (5~15초). 계속 안 되면 `PUBLIC_URL`을 수동으로 지정 |
 | `ERR 429` 또는 연결 끊김 | Quick Tunnel 요청 제한입니다. 폰 fps를 낮추거나 cloudflared를 재시작 (URL이 바뀜) |
-| C3 복제본 하나만 일함 | scale 후 `docker compose restart web`을 안 한 경우입니다 |
+| C3 복제본 하나만 일함 | nginx 가 새 IP 를 조회하기 전(최대 10초)입니다. 계속되면 `docker compose restart web` |
 | 복제본을 늘렸는데 더 느려짐 | `OMP_NUM_THREADS`가 커서 스레드끼리 다투는 상황입니다. 코어 수 / 복제본 수로 맞추세요 |
 | WS가 60초마다 끊김 | nginx `proxy_read_timeout` 확인. 폰과 대시보드는 20초마다 `{"type":"ping"}`을 보냅니다 |
 | 지연이 큼 (>1초) | 폰 → Cloudflare → 노트북 왕복 구간입니다. 전송 해상도 960px 이하, JPEG q=0.6~0.7 유지 (그래도 느리면 800px로 낮추기). 같은 Wi-Fi에서 `http://<노트북IP>:8080`은 카메라가 안 되므로 터널을 유지하세요 |
