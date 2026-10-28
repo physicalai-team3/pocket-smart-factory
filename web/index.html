@@ -4,19 +4,992 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pocket Smart Factory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  /* 대시보드 (담당 B) — docs/03-messages.md §2, §3.2. 색·서체는 시뮬레이터(web/sim/)와 같은 체계 */
+  :root{
+    --machine:#b7b3a8;
+    --panel:#e5e2da;
+    --panel-2:#d3cfc5;
+    --ink:#1a1d1f;
+    --ink-2:#5c6266;
+    --line:#a8a49a;
+    --signal:#1f5c8b;
+    --hazard:#e8b21f;
+    --alarm:#c2372b;
+    --ok:#3e7d53;
+    --void:#14181b;
+    /* 차트 (dataviz 기본 팔레트 1·2번, #fcfcfb 위에서 검증) */
+    --chart-surface:#fcfcfb;
+    --chart-grid:#e1e0d9;
+    --chart-axis:#c3c2b7;
+    --chart-muted:#898781;
+    --series-1:#2a78d6;
+    --series-2:#eb6834;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--machine);
+    background-image:
+      linear-gradient(0deg,rgba(0,0,0,.07) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,0,0,.05) 1px,transparent 1px);
+    background-size:34px 34px;
+    color:var(--ink);
+    font-family:'Barlow','Noto Sans KR',system-ui,sans-serif;
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .rig{
+    display:grid;grid-template-columns:322px minmax(0,1fr);gap:14px;
+    padding:14px;max-width:1680px;margin:0 auto;align-items:start;
+  }
+
+  /* ── 제어 패널 ───────────────────────────────── */
+  .panel{
+    background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--ink);
+    box-shadow:0 2px 0 rgba(0,0,0,.18), inset 0 1px 0 #fff;
+    position:sticky;top:14px;max-height:calc(100vh - 28px);overflow-y:auto;
+  }
+  .panel-head{padding:12px 14px 10px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .panel-head h1{
+    margin:0;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;
+    font-weight:700;font-size:19px;letter-spacing:.04em;text-transform:uppercase;
+  }
+  .panel-head p{margin:3px 0 0;font-size:11.5px;color:var(--ink-2);letter-spacing:.02em}
+  .panel-head code{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink)}
+
+  .grp{padding:12px 14px 14px;border-bottom:1px solid var(--line)}
+  .grp>h2{
+    margin:0 0 10px;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;
+    font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-2);display:flex;align-items:center;gap:8px;
+  }
+  .grp>h2::after{content:"";flex:1;height:1px;background:var(--line)}
+  .help{margin:6px 0 0;font-size:11px;color:var(--ink-2);line-height:1.45}
+
+  .qr{
+    background:#fff;border:1px solid var(--line);aspect-ratio:1;max-width:190px;margin:0 auto 10px;
+    display:grid;place-items:center;position:relative;
+  }
+  .qr img{width:100%;height:100%;display:block;image-rendering:pixelated}
+  .qr-wait{font-size:12px;color:var(--ink-2);text-align:center;padding:12px;line-height:1.5}
+  .url{display:flex;gap:6px;align-items:stretch;margin-bottom:10px}
+  .url code{
+    flex:1;min-width:0;font-family:'IBM Plex Mono',monospace;font-size:11px;background:var(--void);color:var(--hazard);
+    padding:6px 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-radius:2px;
+  }
+  .mini{
+    font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:12px;letter-spacing:.05em;padding:0 10px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);cursor:pointer;
+  }
+  .mini:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+  .status{list-style:none;margin:0 0 10px;padding:0;display:grid;gap:5px}
+  .status li{display:grid;grid-template-columns:10px 42px 1fr;align-items:center;gap:7px;font-size:12.5px}
+  .status .k{color:var(--ink-2)}
+  .status .v{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--line);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+  .dot[data-s=ok]{background:var(--ok)}
+  .dot[data-s=wait]{background:var(--hazard)}
+  .dot[data-s=bad]{background:var(--alarm)}
+
+  .ctl{margin-bottom:11px}
+  .ctl:last-child{margin-bottom:0}
+  .ctl label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+  .ctl .nm{font-size:12.5px;font-weight:500}
+  .ctl .val{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:500;
+    background:var(--void);color:var(--hazard);padding:2px 6px;border-radius:2px;min-width:56px;text-align:right;
+  }
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:20px;background:transparent;cursor:pointer;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:6px;background:var(--void);border-radius:0}
+  input[type=range]::-moz-range-track{height:6px;background:var(--void)}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:18px;margin-top:-6px;background:var(--hazard);
+    border:1px solid #7a5c05;box-shadow:inset 0 -4px 0 rgba(0,0,0,.22);
+  }
+  input[type=range]::-moz-range-thumb{width:14px;height:18px;border-radius:0;background:var(--hazard);border:1px solid #7a5c05}
+  input[type=range]:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+  input[type=range]:disabled{opacity:.45;cursor:not-allowed}
+
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .seg.three{grid-template-columns:1fr 1fr 1fr}
+  .seg button{
+    font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:12.5px;letter-spacing:.05em;
+    padding:8px 4px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;
+  }
+  .seg button[aria-pressed=true]{background:var(--signal);border-color:#123f61;color:#fff}
+  .seg button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  .seg button:disabled{opacity:.45;cursor:not-allowed}
+
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+  .acts.pad{padding:12px 14px}
+  .btn{
+    font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:13px;font-weight:600;letter-spacing:.06em;
+    text-transform:uppercase;padding:10px 6px;border:1px solid var(--ink);background:var(--ink);color:#f2efe8;cursor:pointer;
+    box-shadow:0 2px 0 rgba(0,0,0,.25);text-align:center;text-decoration:none;display:block;
+  }
+  .btn:active{transform:translateY(2px);box-shadow:none}
+  .btn.ghost{background:var(--panel-2);color:var(--ink);border-color:var(--line)}
+  .btn.wide{grid-column:1/-1}
+  .btn.go{background:var(--ok);border-color:#2c5b3c}
+  .btn.warn{background:var(--alarm);border-color:#7d1f17}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+  .btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+  .grp .btn.wide{margin-top:2px}
+
+  /* ── 스테이지 ────────────────────────────────── */
+  .deck{display:flex;flex-direction:column;gap:10px;min-width:0}
+  .banner{
+    background:var(--alarm);color:#fff;padding:9px 12px;font-size:13px;border:1px solid #7d1f17;
+    box-shadow:0 2px 0 rgba(0,0,0,.2);
+  }
+  .readout{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);
+  }
+  .cell{background:var(--panel);padding:8px 10px}
+  .cell .k{font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+  .cell .v{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;line-height:1.15;margin-top:2px}
+  .cell .s{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-2);margin-top:1px;min-height:13px}
+  .cell .v.ng{color:var(--alarm)}
+  .cell .v.ok{color:var(--ok)}
+  .cell.bump{animation:bump .5s ease-out}
+  @keyframes bump{from{background:#fff6d6}to{background:var(--panel)}}
+
+  .stage{
+    position:relative;background:var(--void);border:1px solid #0b0e10;
+    border-top:9px solid var(--hazard);border-bottom:9px solid var(--hazard);overflow:hidden;min-height:180px;
+  }
+  .stage::before,.stage::after{
+    content:"";position:absolute;left:0;right:0;height:9px;z-index:3;pointer-events:none;
+    background:repeating-linear-gradient(-45deg,#14181b 0 9px,transparent 9px 18px);
+  }
+  .stage::before{top:-9px}
+  .stage::after{bottom:-9px}
+  .stage.editing{border-top-color:var(--signal);border-bottom-color:var(--signal)}
+  #view{display:block;width:100%;height:auto;touch-action:none}
+  .stage.editing #view{cursor:crosshair}
+  .plate{
+    position:absolute;right:0;top:0;z-index:2;pointer-events:none;
+    font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.06em;
+    color:#c9d2d8;background:rgba(20,24,27,.72);padding:5px 9px;
+  }
+  .nosignal{
+    position:absolute;inset:0;display:grid;place-items:center;z-index:1;text-align:center;
+    color:#9aa6ae;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;letter-spacing:.12em;font-size:14px;
+    background:rgba(20,24,27,.55);
+  }
+  .nosignal[hidden]{display:none}
+  .nosignal small{display:block;letter-spacing:.04em;font-family:'Barlow','Noto Sans KR',sans-serif;font-size:12px;margin-top:4px;color:#7d8991}
+  .strip{
+    display:flex;flex-wrap:wrap;gap:4px 16px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink);
+    background:var(--panel);border:1px solid var(--line);padding:6px 10px;
+  }
+  .strip b{font-weight:600}
+  .strip .err{color:var(--alarm)}
+
+  .lower{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 250px;gap:10px;align-items:start}
+  .card{background:var(--chart-surface);border:1px solid var(--line);padding:10px 12px 8px;position:relative;min-width:0}
+  .card h3{
+    margin:0;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:13px;font-weight:600;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--ink);
+  }
+  .legend{display:flex;gap:12px;margin:4px 0 2px;font-size:11.5px;color:var(--ink-2)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .legend i{width:12px;height:2px;border-radius:1px;display:inline-block}
+  .chart svg{display:block;width:100%;height:150px;overflow:visible}
+  .chart svg:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+  .tip{
+    position:absolute;pointer-events:none;background:#fff;border:1px solid rgba(11,11,11,.12);
+    box-shadow:0 4px 14px rgba(0,0,0,.12);padding:6px 8px;font-size:11.5px;min-width:110px;z-index:4;
+  }
+  .tip[hidden]{display:none}
+  .tip .t{color:var(--chart-muted);font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-bottom:3px}
+  .tip .r{display:flex;align-items:center;gap:6px;line-height:1.5}
+  .tip .r i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .tip .r b{font-family:'IBM Plex Mono',monospace;font-weight:600;color:#0b0b0b}
+  .tip .r span{color:#52514e}
+  details.tbl{margin-top:4px;font-size:11.5px;color:var(--ink-2)}
+  details.tbl summary{cursor:pointer}
+  details.tbl table{width:100%;border-collapse:collapse;margin-top:4px;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+  details.tbl th,details.tbl td{text-align:right;padding:2px 4px;border-bottom:1px solid var(--chart-grid)}
+  details.tbl th:first-child,details.tbl td:first-child{text-align:left}
+
+  .log{background:var(--panel);border:1px solid var(--line);padding:10px 12px}
+  .log ol{list-style:none;margin:6px 0 0;padding:0;font-family:'IBM Plex Mono',monospace;font-size:12px;max-height:220px;overflow:auto}
+  .log li{display:grid;grid-template-columns:38px 1fr auto;gap:6px;white-space:nowrap;padding:3px 0;border-bottom:1px solid var(--panel-2);align-items:center}
+  .log li .tag{font-size:10.5px;font-weight:600;text-align:center;padding:1px 0;color:#fff;border-radius:2px}
+  .log li .tag.ok{background:var(--ok)}
+  .log li .tag.ng{background:var(--alarm)}
+  .log li .tm{color:var(--ink-2);font-size:11px}
+  .log .empty{color:var(--ink-2);font-size:12px;font-family:'Barlow','Noto Sans KR',sans-serif;border:0;display:block}
+
+  .foot{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:#5c6266;font-family:'IBM Plex Mono',monospace}
+  .foot kbd{background:var(--panel);border:1px solid var(--line);border-bottom-width:2px;padding:1px 5px;font:inherit}
+  .toast{
+    position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:#f2efe8;
+    padding:9px 14px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.25);z-index:10;
+  }
+  .toast[hidden]{display:none}
+
+  @media (max-width:1200px){ .lower{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .log{grid-column:1/-1} }
+  @media (max-width:900px){
+    .rig{grid-template-columns:1fr;padding:10px;gap:10px}
+    .panel{position:static;max-height:none;order:2}
+    .deck{order:1}
+  }
+  @media (max-width:640px){ .lower{grid-template-columns:1fr} }
+  @media (prefers-reduced-motion:reduce){ .btn:active{transform:none} .cell.bump{animation:none} }
+</style>
 </head>
 <body>
-  <!-- 대시보드 (담당 B) — docs/03-messages.md §2, §3.2
-       TODO
-       - POST /api/sessions (localStorage 세션 재사용) → QR(qr_url), phone_url 표시
-       - WS /ws/dashboard?s= : session / phone / stats / config 텍스트, result 봉투(바이너리) 수신
-       - 결과 JPEG 표시, counts(total/ok/ng), 지연·fps·drop·c3_replicas_seen
-       - 설정: line_x, direction, circ_th, solid_th, precise_interval_ms → {type:"config"}
-       - ROI 4점 편집 → {type:"roi"}, reset 버튼 → {type:"reset"}
-       - 시뮬레이터 링크: /sim/
-  -->
-  <h1>Pocket Smart Factory</h1>
-  <p>TODO: 대시보드</p>
-  <p><a href="/sim/">시뮬레이터 열기</a></p>
+<div class="rig">
+
+  <aside class="panel">
+    <div class="panel-head">
+      <h1>Pocket Smart Factory</h1>
+      <p>세션 <code id="sid">—</code></p>
+    </div>
+
+    <section class="grp">
+      <h2>연결</h2>
+      <div class="qr">
+        <img id="qr" alt="폰 연결용 QR 코드" hidden>
+        <div class="qr-wait" id="qr-wait">세션을 만드는 중…</div>
+      </div>
+      <div class="url"><code id="phone-url" title="">—</code><button type="button" class="mini" id="copy" disabled>복사</button></div>
+      <ul class="status">
+        <li><span class="dot" id="st-ws"></span><span class="k">서버</span><span class="v" id="st-ws-v">연결 중</span></li>
+        <li><span class="dot" id="st-phone"></span><span class="k">폰</span><span class="v" id="st-phone-v">대기 중</span></li>
+        <li><span class="dot" id="st-tunnel"></span><span class="k">터널</span><span class="v" id="st-tunnel-v">확인 중</span></li>
+      </ul>
+      <button type="button" class="btn ghost wide" id="new-session">새 세션 만들기</button>
+    </section>
+
+    <section class="grp">
+      <h2>검사선</h2>
+      <div class="ctl">
+        <label for="line_x"><span class="nm">위치 (화면 폭)</span><span class="val" id="line_x-v">34 %</span></label>
+        <input type="range" id="line_x" data-cfg="line_x" min="0.05" max="0.95" step="0.01" value="0.34">
+      </div>
+      <div class="ctl">
+        <div class="seg" role="group" aria-label="진행 방향">
+          <button type="button" data-cfg-dir="rtl" aria-pressed="true">← 오른쪽에서 왼쪽</button>
+          <button type="button" data-cfg-dir="ltr" aria-pressed="false">왼쪽에서 오른쪽 →</button>
+        </div>
+        <p class="help">시뮬레이터 기본값은 34 %, ← 방향입니다.</p>
+      </div>
+    </section>
+
+    <section class="grp">
+      <h2>판정 임계값</h2>
+      <div class="ctl">
+        <label for="circ_th"><span class="nm">원형도 하한</span><span class="val" id="circ_th-v">0.80</span></label>
+        <input type="range" id="circ_th" data-cfg="circ_th" min="0.50" max="1.00" step="0.01" value="0.80">
+      </div>
+      <div class="ctl">
+        <label for="solid_th"><span class="nm">볼록도 하한</span><span class="val" id="solid_th-v">0.950</span></label>
+        <input type="range" id="solid_th" data-cfg="solid_th" min="0.800" max="1.000" step="0.005" value="0.950">
+      </div>
+      <p class="help">둘 중 하나라도 하한보다 낮으면 불량입니다.</p>
+    </section>
+
+    <section class="grp">
+      <h2>정밀 판정 (SAM 2)</h2>
+      <div class="ctl">
+        <div class="seg three" role="group" aria-label="정밀 판정 정책">
+          <button type="button" data-cfg-policy="uncertain" aria-pressed="true">애매할 때</button>
+          <button type="button" data-cfg-policy="interval" aria-pressed="false">주기적</button>
+          <button type="button" data-cfg-policy="off" aria-pressed="false">끔</button>
+        </div>
+        <p class="help" id="policy-help"></p>
+      </div>
+      <div class="ctl">
+        <label for="precise_interval_ms"><span class="nm">최소 간격</span><span class="val" id="precise_interval_ms-v">300 ms</span></label>
+        <input type="range" id="precise_interval_ms" data-cfg="precise_interval_ms" min="100" max="3000" step="50" value="300">
+      </div>
+      <div class="ctl">
+        <label for="circ_band"><span class="nm">애매 범위 · 원형도</span><span class="val" id="circ_band-v">±0.020</span></label>
+        <input type="range" id="circ_band" data-cfg="circ_band" min="0.005" max="0.100" step="0.005" value="0.020">
+      </div>
+      <div class="ctl">
+        <label for="solid_band"><span class="nm">애매 범위 · 볼록도</span><span class="val" id="solid_band-v">±0.020</span></label>
+        <input type="range" id="solid_band" data-cfg="solid_band" min="0.005" max="0.050" step="0.005" value="0.020">
+      </div>
+      <p class="help">특징값이 하한 ± 범위 안이면 “애매”로 보고 SAM 2를 요청합니다. 넓힐수록 SAM 2를 자주 부릅니다.</p>
+    </section>
+
+    <section class="grp">
+      <h2>원근 보정 (ROI)</h2>
+      <p class="help" id="roi-state" style="margin:0 0 9px">적용 안 함: 화면 전체를 그대로 검사합니다.</p>
+      <div class="acts" id="roi-idle">
+        <button type="button" class="btn ghost" id="roi-edit" disabled>4점 지정</button>
+        <button type="button" class="btn ghost" id="roi-clear" disabled>해제</button>
+      </div>
+      <div class="acts" id="roi-editing" hidden>
+        <button type="button" class="btn go" id="roi-apply">적용</button>
+        <button type="button" class="btn ghost" id="roi-cancel">취소</button>
+        <p class="help" style="grid-column:1/-1;margin:2px 0 0">영상 위 노란 점 4개를 시뮬레이터 화면의 네 모서리로 끌어다 놓으세요. 지정하는 동안은 보정 전 원본이 보입니다.</p>
+      </div>
+    </section>
+
+    <div class="acts pad">
+      <button type="button" class="btn warn wide" id="reset" disabled>카운트 리셋</button>
+      <a class="btn ghost wide" href="/sim/" target="_blank" rel="noopener">시뮬레이터 열기</a>
+    </div>
+  </aside>
+
+  <main class="deck">
+    <div class="banner" id="banner" role="alert" hidden></div>
+
+    <div class="readout">
+      <div class="cell" id="c-total"><div class="k">검사 통과</div><div class="v" id="r-total">0</div><div class="s">&nbsp;</div></div>
+      <div class="cell" id="c-ok"><div class="k">정상</div><div class="v ok" id="r-ok">0</div><div class="s">&nbsp;</div></div>
+      <div class="cell" id="c-ng"><div class="k">불량</div><div class="v ng" id="r-ng">0</div><div class="s">&nbsp;</div></div>
+      <div class="cell"><div class="k">불량률</div><div class="v" id="r-rate">0.0%</div><div class="s">&nbsp;</div></div>
+      <div class="cell"><div class="k">처리 fps</div><div class="v" id="r-fps">—</div><div class="s" id="r-fps-s">입력 —</div></div>
+      <div class="cell"><div class="k">지연</div><div class="v" id="r-lat">—</div><div class="s" id="r-lat-s">p95 —</div></div>
+      <div class="cell"><div class="k">드롭</div><div class="v" id="r-drop">—</div><div class="s" id="r-drop-s">&nbsp;</div></div>
+      <div class="cell"><div class="k">C3 복제본</div><div class="v" id="r-rep">—</div><div class="s">&nbsp;</div></div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="plate" id="plate">RESULT · —</div>
+      <canvas id="view" width="960" height="430" aria-label="C4가 판정을 표시한 결과 영상"></canvas>
+      <div class="nosignal" id="nosignal">신호 없음<small id="nosignal-s">폰으로 QR을 스캔해 카메라 송출을 시작하세요.</small></div>
+    </div>
+
+    <div class="strip" id="strip">
+      <span>단계 지연 <b id="s-c2">—</b> / <b id="s-c3">—</b> / <b id="s-c4">—</b> ms (C2 / C3 / C4)</span>
+      <span>SAM 2 <b id="s-pfps">—</b> fps · 마지막 <b id="s-pms">—</b> ms · 애매한 트랙 <b id="s-amb">—</b>개</span>
+      <span id="s-err">오류 —</span>
+    </div>
+
+    <div class="lower">
+      <figure class="card chart" id="ch-fps" style="margin:0"></figure>
+      <figure class="card chart" id="ch-lat" style="margin:0"></figure>
+      <section class="log">
+        <h3 style="margin:0;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase">최근 카운트</h3>
+        <ol id="events"><li class="empty">아직 검사선을 지난 과자가 없습니다.</li></ol>
+      </section>
+    </div>
+
+    <div class="foot">
+      <span><kbd>R</kbd> 카운트 리셋</span>
+      <span><kbd>Esc</kbd> ROI 지정 취소</span>
+      <span id="foot-seq"></span>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const KEY = 'psf.session';
+  const POLICY_HELP = {
+    uncertain: '판정이 애매한 과자가 있을 때만 SAM 2를 돌립니다.',
+    interval: '최소 간격마다 무조건 SAM 2를 돌립니다 (비교 실험용).',
+    off: 'OpenCV 판정만 씁니다.'
+  };
+
+  let session = null, ws = null, wsTry = 0, config = null;
+  let lastResultAt = 0, prevTotal = null;
+
+  /* ── 공통 ─────────────────────────────────── */
+  function setStatus(id, s, text, title){
+    $('#' + id).dataset.s = s;
+    const v = $('#' + id + '-v');
+    v.textContent = text;
+    v.title = title || '';
+  }
+  let toastT;
+  function toast(msg){
+    const t = $('#toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2200);
+  }
+  function banner(msg){ const b = $('#banner'); b.hidden = !msg; b.textContent = msg || ''; }
+  function send(obj){
+    if (ws && ws.readyState === WebSocket.OPEN){ ws.send(JSON.stringify(obj)); return true; }
+    toast('서버와 연결되어 있지 않습니다.');
+    return false;
+  }
+  const hms = t => new Date(t).toTimeString().slice(0, 8);  // 13:29:05
+  const fmt = {
+    line_x: v => Math.round(v*100) + ' %',
+    circ_th: v => (+v).toFixed(2),
+    solid_th: v => (+v).toFixed(3),
+    precise_interval_ms: v => Math.round(v) + ' ms',
+    circ_band: v => '±' + (+v).toFixed(3),
+    solid_band: v => '±' + (+v).toFixed(3)
+  };
+
+  /* ── 세션 · QR ────────────────────────────── */
+  async function initSession(forceNew){
+    banner('');
+    try {
+      let info = null;
+      const saved = forceNew ? null : localStorage.getItem(KEY);
+      if (saved){
+        const r = await fetch('/api/sessions/' + encodeURIComponent(saved));
+        if (r.ok) info = await r.json();
+      }
+      if (!info){
+        const r = await fetch('/api/sessions', { method:'POST' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        info = await r.json();
+      }
+      try { localStorage.setItem(KEY, info.session); } catch (e) {}
+      applySession(info);
+      connect();
+    } catch (e){
+      banner(`C1 게이트웨이에 연결할 수 없습니다 (${e.message}). 3초 후 다시 시도합니다.`);
+      setStatus('st-ws', 'bad', '응답 없음');
+      setTimeout(() => initSession(forceNew), 3000);
+    }
+  }
+
+  let qrRetry;
+  function applySession(info){
+    const changed = !session || session.session !== info.session || session.public_url !== info.public_url;
+    session = { ...(session || {}), ...info };
+    $('#sid').textContent = session.session;
+    const url = session.phone_url;
+    $('#phone-url').textContent = url || '공개 URL을 기다리는 중…';
+    $('#phone-url').title = url || '';
+    $('#copy').disabled = !url;
+    if (session.public_url){
+      setStatus('st-tunnel', 'ok', session.public_url.replace(/^https?:\/\//, ''), session.public_url);
+    } else {
+      setStatus('st-tunnel', 'wait', '준비 중');
+    }
+    if (changed) loadQr();
+  }
+
+  function loadQr(){
+    clearTimeout(qrRetry);
+    const img = $('#qr'), wait = $('#qr-wait');
+    if (!session.public_url){
+      img.hidden = true; wait.hidden = false;
+      wait.textContent = '터널을 여는 중입니다. QR이 곧 나타납니다.';
+      return;
+    }
+    img.onload = () => { img.hidden = false; wait.hidden = true; };
+    img.onerror = () => {
+      img.hidden = true; wait.hidden = false;
+      wait.textContent = 'QR을 불러오지 못했습니다. 다시 시도하는 중…';
+      qrRetry = setTimeout(loadQr, 3000);
+    };
+    // 터널 URL 이 바뀌면 QR 내용도 바뀌므로 캐시를 피한다
+    img.src = session.qr_url + '?u=' + encodeURIComponent(session.public_url);
+  }
+
+  $('#copy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(session.phone_url); toast('폰 접속 주소를 복사했습니다.'); }
+    catch (e) { toast('복사하지 못했습니다. 주소를 직접 선택해 주세요.'); }
+  });
+  $('#new-session').addEventListener('click', () => {
+    if (!confirm('새 세션을 만들면 지금 연결된 폰은 끊기고 QR이 바뀝니다. 계속할까요?')) return;
+    if (ws){ ws.onclose = null; ws.close(); }
+    session = null; resetView();
+    initSession(true);
+  });
+
+  /* ── WebSocket ───────────────────────────── */
+  function connect(){
+    if (ws){ ws.onclose = null; ws.close(); }
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws/dashboard?s=${encodeURIComponent(session.session)}`);
+    ws.binaryType = 'arraybuffer';
+    setStatus('st-ws', 'wait', '연결 중');
+    ws.onopen = () => {
+      wsTry = 0;
+      setStatus('st-ws', 'ok', '연결됨');
+      $('#reset').disabled = false;
+      banner('');
+    };
+    ws.onmessage = e => {
+      if (typeof e.data === 'string'){
+        let m; try { m = JSON.parse(e.data); } catch (err) { return; }
+        onText(m);
+      } else {
+        onEnvelope(e.data);
+      }
+    };
+    ws.onclose = e => {
+      $('#reset').disabled = true;
+      setStatus('st-phone', '', '알 수 없음');
+      if (e.code === 4404){
+        // 서버가 재시작돼 세션이 사라졌다 → 새로 만든다
+        toast('세션이 만료되어 새로 만듭니다.');
+        session = null;
+        initSession(true);
+        return;
+      }
+      const wait = Math.min(5000, 800 * 2 ** wsTry++);
+      setStatus('st-ws', 'bad', `끊김 · ${Math.round(wait/1000)}초 후 재연결`);
+      setTimeout(connect, wait);
+    };
+  }
+
+  function onText(m){
+    switch (m.type){
+      case 'session': applySession(m); break;
+      case 'phone': {
+        const d = m.device || {};
+        if (m.connected) setStatus('st-phone', 'ok', `연결됨${d.w ? ` · ${d.w}×${d.h}` : ''}`, d.ua || '');
+        else setStatus('st-phone', 'wait', '대기 중 · QR을 스캔하세요');
+        $('#nosignal-s').textContent = m.connected ? '프레임을 기다리는 중…' : '폰으로 QR을 스캔해 카메라 송출을 시작하세요.';
+        break;
+      }
+      case 'stats': onStats(m); break;
+      case 'config': onConfig(m.config); break;
+      case 'error': banner(`${m.code}: ${m.message || ''}`); break;
+    }
+  }
+
+  /* ── 결과 프레임 ─────────────────────────── */
+  const cvs = $('#view'), ctx = cvs.getContext('2d');
+  const dec = new TextDecoder();
+  let frameBmp = null, pendingBlob = null, decoding = false;
+
+  function onEnvelope(buf){
+    const n = new DataView(buf).getUint32(0);
+    let h;
+    try { h = JSON.parse(dec.decode(new Uint8Array(buf, 4, n))); } catch (e) { return; }
+    if (h.type !== 'result') return;
+    onResult(h);
+    pendingBlob = new Blob([new Uint8Array(buf, 4 + n)], { type:'image/jpeg' });
+    pump();
+  }
+
+  // 디코딩이 밀리면 중간 프레임은 버리고 가장 최근 것만 그린다
+  async function pump(){
+    if (decoding || !pendingBlob) return;
+    decoding = true;
+    const b = pendingBlob; pendingBlob = null;
+    try {
+      const bmp = await createImageBitmap(b);
+      if (frameBmp) frameBmp.close();
+      frameBmp = bmp;
+      paint();
+    } catch (e) { /* 깨진 JPEG 은 건너뛴다 */ }
+    decoding = false;
+    pump();
+  }
+
+  function paint(){
+    if (!frameBmp) return;
+    if (cvs.width !== frameBmp.width || cvs.height !== frameBmp.height){
+      cvs.width = frameBmp.width; cvs.height = frameBmp.height;
+    }
+    ctx.drawImage(frameBmp, 0, 0);
+    if (roi.editing) drawRoi();
+  }
+
+  function onResult(h){
+    lastResultAt = performance.now();
+    $('#nosignal').hidden = true;
+    $('#roi-edit').disabled = false;
+    const lat = h.latency_ms && h.latency_ms.total != null ? ` · ${Math.round(h.latency_ms.total)} ms` : '';
+    $('#plate').textContent = `RESULT · seq ${h.seq} · ${h.w}×${h.h}${lat}`;
+    $('#foot-seq').textContent = `화면 속 트랙 ${h.tracks ? h.tracks.length : 0}개`;
+    $('#s-amb').textContent = h.tracks ? h.tracks.filter(t => t.needs_precise).length : 0;
+
+    const c = h.counts || { total:0, ok:0, ng:0 };
+    $('#r-total').textContent = c.total;
+    $('#r-ok').textContent = c.ok;
+    $('#r-ng').textContent = c.ng;
+    $('#r-rate').textContent = (c.total ? c.ng / c.total * 100 : 0).toFixed(1) + '%';
+    if (prevTotal !== null && c.total > prevTotal){
+      for (const ev of h.events || []) bump(ev.verdict === 'ok' ? '#c-ok' : '#c-ng');
+      bump('#c-total');
+    }
+    if (prevTotal !== null && c.total < prevTotal) clearEvents();
+    prevTotal = c.total;
+    for (const ev of h.events || []) addEvent(ev);
+  }
+
+  function bump(sel){
+    const el = $(sel);
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  }
+
+  // 결과가 끊기면 마지막 화면을 흐리게 하고 알린다
+  setInterval(() => {
+    if (lastResultAt && performance.now() - lastResultAt > 2500 && !roi.editing){
+      $('#nosignal').hidden = false;
+      $('#nosignal').firstChild.textContent = '프레임 끊김';
+    }
+  }, 500);
+
+  function resetView(){
+    lastResultAt = 0; prevTotal = null;
+    if (frameBmp){ frameBmp.close(); frameBmp = null; }
+    ctx.clearRect(0, 0, cvs.width, cvs.height);
+    $('#nosignal').hidden = false;
+    $('#nosignal').firstChild.textContent = '신호 없음';
+    for (const id of ['r-total','r-ok','r-ng']) $('#' + id).textContent = '0';
+    $('#r-rate').textContent = '0.0%';
+    clearEvents();
+  }
+
+  /* ── 카운트 이벤트 로그 ──────────────────── */
+  const MAX_EVENTS = 40;
+  function clearEvents(){
+    const ol = $('#events'); ol.textContent = '';
+    const li = document.createElement('li'); li.className = 'empty';
+    li.textContent = '아직 검사선을 지난 과자가 없습니다.';
+    ol.appendChild(li);
+  }
+  function addEvent(ev){
+    const ol = $('#events');
+    const empty = ol.querySelector('.empty'); if (empty) empty.remove();
+    const li = document.createElement('li');
+    const tag = document.createElement('span'); tag.className = 'tag ' + ev.verdict; tag.textContent = ev.verdict.toUpperCase();
+    const id = document.createElement('span'); id.textContent = `#${ev.track_id} · seq ${ev.seq}`;
+    const tm = document.createElement('span'); tm.className = 'tm'; tm.textContent = hms(Date.now());
+    li.append(tag, id, tm);
+    ol.prepend(li);
+    while (ol.children.length > MAX_EVENTS) ol.lastChild.remove();
+  }
+
+  /* ── 설정 ─────────────────────────────────── */
+  function onConfig(c){
+    config = c;
+    document.querySelectorAll('[data-cfg]').forEach(el => {
+      const k = el.dataset.cfg;
+      if (c[k] == null || el === document.activeElement) return;  // 사용자가 조작 중인 슬라이더는 건드리지 않는다
+      el.value = c[k];
+      $('#' + k + '-v').textContent = fmt[k](c[k]);
+    });
+    document.querySelectorAll('[data-cfg-dir]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cfgDir === c.direction)));
+    document.querySelectorAll('[data-cfg-policy]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cfgPolicy === c.precise_policy)));
+    $('#policy-help').textContent = POLICY_HELP[c.precise_policy] || '';
+    $('#precise_interval_ms').disabled = c.precise_policy === 'off';
+    // band 는 uncertain 정책에서만 쓰인다
+    $('#circ_band').disabled = $('#solid_band').disabled = c.precise_policy !== 'uncertain';
+    if (!roi.editing) setRoiState(c.roi);
+  }
+
+  document.querySelectorAll('[data-cfg]').forEach(el => {
+    const k = el.dataset.cfg;
+    el.addEventListener('input', () => { $('#' + k + '-v').textContent = fmt[k](el.value); });
+    // 놓았을 때 한 번만 보낸다 (부분 업데이트)
+    el.addEventListener('change', () => send({ type:'config', config:{ [k]: parseFloat(el.value) } }));
+  });
+  document.querySelectorAll('[data-cfg-dir]').forEach(b =>
+    b.addEventListener('click', () => send({ type:'config', config:{ direction: b.dataset.cfgDir } })));
+  document.querySelectorAll('[data-cfg-policy]').forEach(b =>
+    b.addEventListener('click', () => send({ type:'config', config:{ precise_policy: b.dataset.cfgPolicy } })));
+  $('#policy-help').textContent = POLICY_HELP.uncertain;
+
+  function doReset(){
+    if (send({ type:'reset' })) toast('카운트를 초기화했습니다. 시뮬레이터의 “라인 비우기”도 함께 누르세요.');
+  }
+  $('#reset').addEventListener('click', doReset);
+
+  /* ── ROI 4점 편집 ────────────────────────── */
+  const roi = { editing:false, pts:null, prev:null, drag:-1 };
+  const ROI_DEFAULT = [[0.08,0.10],[0.92,0.10],[0.92,0.90],[0.08,0.90]];
+
+  function setRoiState(points){
+    $('#roi-state').textContent = points
+      ? '적용 중: 시뮬레이터 화면을 정면으로 펴서 검사합니다.'
+      : '적용 안 함: 화면 전체를 그대로 검사합니다.';
+    $('#roi-clear').disabled = !points;
+  }
+
+  // 좌상 → 우상 → 우하 → 좌하 (계약 순서). 중심 기준 각도로 시계 방향 정렬 후 좌상에서 시작
+  function orderQuad(pts){
+    const cx = pts.reduce((s, p) => s + p[0], 0) / 4, cy = pts.reduce((s, p) => s + p[1], 0) / 4;
+    const s = [...pts].sort((a, b) => Math.atan2(a[1]-cy, a[0]-cx) - Math.atan2(b[1]-cy, b[0]-cx));
+    let k = 0;
+    s.forEach((p, i) => { if (p[0] + p[1] < s[k][0] + s[k][1]) k = i; });
+    return s.slice(k).concat(s.slice(0, k));
+  }
+
+  function enterRoi(){
+    if (!frameBmp) return;
+    roi.prev = config ? config.roi : null;
+    roi.pts = (roi.prev || ROI_DEFAULT).map(p => [...p]);
+    roi.editing = true;
+    // 원본 프레임 기준으로 찍어야 하므로 보정을 끈 영상을 받는다 (C1 은 ROI 가 없으면 X-Roi 를 빼고 보낸다)
+    if (roi.prev) send({ type:'roi', points:null });
+    $('#roi-idle').hidden = true; $('#roi-editing').hidden = false;
+    $('#stage').classList.add('editing');
+    paint();
+  }
+  function exitRoi(points){
+    roi.editing = false; roi.drag = -1;
+    $('#roi-idle').hidden = false; $('#roi-editing').hidden = true;
+    $('#stage').classList.remove('editing');
+    if (points !== undefined) send({ type:'roi', points });
+    setRoiState(points !== undefined ? points : (config && config.roi));
+    paint();
+  }
+  $('#roi-edit').addEventListener('click', enterRoi);
+  $('#roi-apply').addEventListener('click', () => {
+    const p = orderQuad(roi.pts).map(([x, y]) => [+x.toFixed(4), +y.toFixed(4)]);
+    exitRoi(p);
+    toast('ROI를 적용했습니다.');
+  });
+  $('#roi-cancel').addEventListener('click', () => exitRoi(roi.prev));  // 이전 ROI 를 되돌린다
+  $('#roi-clear').addEventListener('click', () => { send({ type:'roi', points:null }); setRoiState(null); });
+
+  function drawRoi(){
+    const W = cvs.width, H = cvs.height;
+    const k = W / cvs.getBoundingClientRect().width;  // 화면 크기와 무관하게 손잡이 크기를 일정하게
+    const ordered = orderQuad(roi.pts);
+    ctx.save();
+    ctx.beginPath();
+    ordered.forEach(([x, y], i) => i ? ctx.lineTo(x*W, y*H) : ctx.moveTo(x*W, y*H));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(232,178,31,.12)'; ctx.fill();
+    ctx.lineWidth = 2*k; ctx.strokeStyle = '#e8b21f'; ctx.stroke();
+    ordered.forEach(([x, y], i) => {
+      ctx.beginPath(); ctx.arc(x*W, y*H, 9*k, 0, Math.PI*2);
+      ctx.fillStyle = '#e8b21f'; ctx.fill();
+      ctx.lineWidth = 2*k; ctx.strokeStyle = '#14181b'; ctx.stroke();
+      ctx.fillStyle = '#14181b';
+      ctx.font = `600 ${11*k}px 'IBM Plex Mono', monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(i + 1), x*W, y*H + 0.5*k);
+    });
+    ctx.restore();
+  }
+
+  function toNorm(e){
+    const r = cvs.getBoundingClientRect();
+    return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+  }
+  cvs.addEventListener('pointerdown', e => {
+    if (!roi.editing) return;
+    const r = cvs.getBoundingClientRect(), [nx, ny] = toNorm(e);
+    let best = -1, bd = 22;  // CSS px
+    roi.pts.forEach(([x, y], i) => {
+      const d = Math.hypot((x - nx) * r.width, (y - ny) * r.height);
+      if (d < bd){ bd = d; best = i; }
+    });
+    if (best < 0) return;
+    roi.drag = best;
+    cvs.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  cvs.addEventListener('pointermove', e => {
+    if (!roi.editing || roi.drag < 0) return;
+    roi.pts[roi.drag] = toNorm(e);
+    paint();
+  });
+  cvs.addEventListener('pointerup', () => { roi.drag = -1; });
+  cvs.addEventListener('pointercancel', () => { roi.drag = -1; });
+
+  window.addEventListener('keydown', e => {
+    if (e.target.matches('input,button,select,textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Escape' && roi.editing) exitRoi(roi.prev);
+    else if (e.key.toLowerCase() === 'r' && !$('#reset').disabled) doReset();
+  });
+
+  /* ── 지표 ─────────────────────────────────── */
+  const HISTORY_S = 120;
+  const hist = [];  // { t, fps_in, fps_out, total, p95 }
+  let prevDropped = null;
+
+  function onStats(m){
+    const L = m.latency_ms || {};
+    $('#r-fps').textContent = m.fps_out != null ? m.fps_out.toFixed(1) : '—';
+    $('#r-fps-s').textContent = `입력 ${m.fps_in != null ? m.fps_in.toFixed(1) : '—'}`;
+    $('#r-lat').textContent = L.total != null ? Math.round(L.total) + ' ms' : '—';
+    $('#r-lat-s').textContent = `p95 ${L.p95_total != null ? Math.round(L.p95_total) + ' ms' : '—'}`;
+    $('#r-drop').textContent = m.dropped != null ? m.dropped : '—';
+    const dropNow = prevDropped != null && m.dropped != null ? Math.max(0, m.dropped - prevDropped) : null;
+    prevDropped = m.dropped;
+    $('#r-drop-s').textContent = dropNow != null ? `최근 1초 +${dropNow}` : ' ';
+    $('#r-rep').textContent = m.c3_replicas_seen != null ? m.c3_replicas_seen : '—';
+    $('#s-c2').textContent = L.c2 != null ? Math.round(L.c2) : '—';
+    $('#s-c3').textContent = L.c3 != null ? Math.round(L.c3) : '—';
+    $('#s-c4').textContent = L.c4 != null ? Math.round(L.c4) : '—';
+    const P = m.precise || {};
+    $('#s-pfps').textContent = P.fps != null ? (+P.fps).toFixed(1) : '—';
+    $('#s-pms').textContent = P.last_ms != null ? Math.round(P.last_ms) : '—';
+    const E = m.errors || {};
+    const errSum = (E.c2 || 0) + (E.c3 || 0) + (E.c4 || 0);
+    const se = $('#s-err');
+    se.textContent = `오류 C2 ${E.c2 || 0} · C3 ${E.c3 || 0} · C4 ${E.c4 || 0}`;
+    se.className = errSum ? 'err' : '';
+
+    hist.push({ t: Date.now(), fps_in: m.fps_in, fps_out: m.fps_out, total: L.total, p95: L.p95_total });
+    while (hist.length && hist[0].t < Date.now() - HISTORY_S * 1000) hist.shift();
+    fpsChart.render(); latChart.render();
+  }
+
+  /* ── 선 차트 (SVG, 십자선 + 툴팁 + 표 보기) ─ */
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent){
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs){
+      const v = attrs[k];
+      // SVG 속성값에서는 CSS 변수가 풀리지 않으므로 style 로 넣는다
+      if (typeof v === 'string' && v.startsWith('var(')) e.style.setProperty(k, v);
+      else e.setAttribute(k, v);
+    }
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function niceMax(v){
+    if (!(v > 0)) return 1;
+    const p = 10 ** Math.floor(Math.log10(v)), n = v / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  }
+
+  function makeChart(root, opt){
+    const h3 = document.createElement('h3'); h3.textContent = opt.title; root.appendChild(h3);
+    const lg = document.createElement('div'); lg.className = 'legend';
+    for (const s of opt.series){
+      const it = document.createElement('span'), sw = document.createElement('i');
+      sw.style.background = s.color; it.append(sw, document.createTextNode(s.name)); lg.appendChild(it);
+    }
+    root.appendChild(lg);
+    const svg = el('svg', { role:'img', tabindex:'0', 'aria-label': opt.title + ' — 최근 2분' }, root);
+    const tip = document.createElement('div'); tip.className = 'tip'; tip.hidden = true; root.appendChild(tip);
+    const det = document.createElement('details'); det.className = 'tbl';
+    const sum = document.createElement('summary'); sum.textContent = '표로 보기 (최근 10초)';
+    const tbl = document.createElement('table'); det.append(sum, tbl); root.appendChild(det);
+    det.addEventListener('toggle', () => det.open && renderTable());
+
+    const M = { l: 34, r: 74, t: 8, b: 20 };
+    let geo = null, hover = -1;
+
+    function render(){
+      const W = root.clientWidth - 24, H = 150;
+      svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      svg.textContent = '';
+      const now = Date.now(), x0 = now - HISTORY_S * 1000;
+      const pw = W - M.l - M.r, ph = H - M.t - M.b;
+      let vmax = 0;
+      for (const d of hist) for (const s of opt.series) if (d[s.key] != null) vmax = Math.max(vmax, d[s.key]);
+      const ymax = niceMax(vmax * 1.1 || opt.minMax);
+      const X = t => M.l + (t - x0) / (HISTORY_S * 1000) * pw;
+      const Y = v => M.t + ph - v / ymax * ph;
+      geo = { X, Y, W, H };
+
+      for (let i = 0; i <= 4; i++){  // 가로 격자 + y 눈금
+        const v = ymax * i / 4, y = Y(v);
+        el('line', { x1:M.l, x2:M.l + pw, y1:y, y2:y, stroke: i ? 'var(--chart-grid)' : 'var(--chart-axis)', 'stroke-width':1 }, svg);
+        const tx = el('text', { x:M.l - 6, y:y + 3.5, 'text-anchor':'end', fill:'var(--chart-muted)', 'font-size':10, 'font-family':'IBM Plex Mono, monospace' }, svg);
+        tx.textContent = opt.fmtAxis(v);
+      }
+      for (const s of [-120, -90, -60, -30, 0]){  // x 눈금
+        const tx = el('text', { x:X(now + s * 1000), y:H - 4, 'text-anchor': s === 0 ? 'end' : s === -120 ? 'start' : 'middle', fill:'var(--chart-muted)', 'font-size':10, 'font-family':'IBM Plex Mono, monospace' }, svg);
+        tx.textContent = s === 0 ? '지금' : s + 's';
+      }
+      if (!hist.length){
+        const tx = el('text', { x:M.l + pw/2, y:M.t + ph/2, 'text-anchor':'middle', fill:'var(--chart-muted)', 'font-size':12 }, svg);
+        tx.textContent = '지표를 기다리는 중…';
+        return;
+      }
+
+      const ends = [];
+      for (const s of opt.series){
+        const pts = hist.filter(d => d[s.key] != null).map(d => [X(d.t), Y(d[s.key])]);
+        if (!pts.length) continue;
+        el('path', { d: 'M' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L'), fill:'none', stroke:s.color,
+                     'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round' }, svg);
+        const [ex, ey] = pts[pts.length - 1];
+        el('circle', { cx:ex, cy:ey, r:4, fill:s.color, stroke:'var(--chart-surface)', 'stroke-width':2 }, svg);
+        ends.push({ s, x:ex, y:ey, v: hist[hist.length - 1][s.key] });
+      }
+      // 끝점 직접 라벨: 겹치면 위아래로 벌린다
+      ends.sort((a, b) => a.y - b.y);
+      for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i-1].y < 13) ends[i].ly = (ends[i-1].ly ?? ends[i-1].y) + 13;
+      for (const e of ends){
+        const tx = el('text', { x:e.x + 8, y:(e.ly ?? e.y) + 3.5, fill:'#52514e', 'font-size':10.5, 'font-family':'IBM Plex Mono, monospace' }, svg);
+        tx.textContent = `${e.s.short} ${e.v != null ? opt.fmt(e.v) : '—'}`;
+      }
+
+      if (hover >= 0 && hist[hover]) drawHover();
+      const hit = el('rect', { x:M.l, y:M.t, width:pw, height:ph, fill:'transparent' }, svg);
+      hit.addEventListener('pointermove', ev => {
+        const r = svg.getBoundingClientRect(), sx = (ev.clientX - r.left) * (W / r.width);
+        let bi = 0, bd = Infinity;
+        hist.forEach((d, i) => { const dd = Math.abs(X(d.t) - sx); if (dd < bd){ bd = dd; bi = i; } });
+        if (bi !== hover){ hover = bi; render(); }
+      });
+      hit.addEventListener('pointerleave', () => { hover = -1; tip.hidden = true; render(); });
+      if (det.open) renderTable();
+    }
+
+    function drawHover(){
+      const d = hist[hover], { X, Y, W } = geo, x = X(d.t);
+      el('line', { x1:x, x2:x, y1:M.t, y2:geo.H - M.b, stroke:'var(--chart-axis)', 'stroke-width':1 }, svg);
+      for (const s of opt.series) if (d[s.key] != null)
+        el('circle', { cx:x, cy:Y(d[s.key]), r:4, fill:s.color, stroke:'var(--chart-surface)', 'stroke-width':2 }, svg);
+      tip.textContent = '';
+      const t = document.createElement('div'); t.className = 't';
+      t.textContent = hms(d.t);
+      tip.appendChild(t);
+      for (const s of opt.series){
+        const r = document.createElement('div'); r.className = 'r';
+        const i = document.createElement('i'); i.style.background = s.color;
+        const b = document.createElement('b'); b.textContent = d[s.key] != null ? opt.fmt(d[s.key]) : '—';
+        const n = document.createElement('span'); n.textContent = s.name;
+        r.append(i, b, n); tip.appendChild(r);
+      }
+      tip.hidden = false;
+      const scale = svg.getBoundingClientRect().width / W;
+      const left = 12 + x * scale;
+      tip.style.left = (left + 130 > root.clientWidth ? left - 130 - 10 : left + 10) + 'px';
+      tip.style.top = '44px';
+    }
+
+    function renderTable(){
+      tbl.textContent = '';
+      const hr = document.createElement('tr');
+      for (const c of ['시각', ...opt.series.map(s => s.name)]){ const th = document.createElement('th'); th.textContent = c; hr.appendChild(th); }
+      tbl.appendChild(hr);
+      for (const d of hist.slice(-10).reverse()){
+        const tr = document.createElement('tr');
+        const td0 = document.createElement('td'); td0.textContent = hms(d.t); tr.appendChild(td0);
+        for (const s of opt.series){ const td = document.createElement('td'); td.textContent = d[s.key] != null ? opt.fmt(d[s.key]) : '—'; tr.appendChild(td); }
+        tbl.appendChild(tr);
+      }
+    }
+
+    svg.addEventListener('keydown', e => {  // 키보드로도 값을 읽을 수 있게
+      if (!hist.length || !['ArrowLeft','ArrowRight'].includes(e.key)) return;
+      e.preventDefault();
+      hover = hover < 0 ? hist.length - 1 : Math.max(0, Math.min(hist.length - 1, hover + (e.key === 'ArrowLeft' ? -1 : 1)));
+      render();
+    });
+    svg.addEventListener('blur', () => { hover = -1; tip.hidden = true; render(); });
+    new ResizeObserver(() => render()).observe(root);
+    return { render };
+  }
+
+  const fpsChart = makeChart($('#ch-fps'), {
+    title: '처리량 (fps)', minMax: 10,
+    series: [
+      { key:'fps_in', name:'폰 입력', short:'입력', color:'var(--series-1)' },
+      { key:'fps_out', name:'처리 완료', short:'처리', color:'var(--series-2)' }
+    ],
+    fmt: v => (+v).toFixed(1), fmtAxis: v => +v.toFixed(1)
+  });
+  const latChart = makeChart($('#ch-lat'), {
+    title: '지연 (ms)', minMax: 100,
+    series: [
+      { key:'total', name:'평균', short:'평균', color:'var(--series-1)' },
+      { key:'p95', name:'p95', short:'p95', color:'var(--series-2)' }
+    ],
+    fmt: v => Math.round(v) + '', fmtAxis: v => Math.round(v)
+  });
+
+  initSession(false);
+})();
+</script>
 </body>
 </html>
