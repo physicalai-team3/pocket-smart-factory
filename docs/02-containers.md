@@ -131,9 +131,9 @@
 | `SAM2_ENABLED` | `0` | 1이면 시작 시 SAM 2 로드 (이미지 빌드 시 `WITH_SAM2=1` 필요) |
 | `SAM2_CKPT` | `/models/sam2.1_hiera_tiny.pt` | 볼륨 `./models` 마운트 |
 | `SAM2_CFG` | `configs/sam2.1/sam2.1_hiera_t.yaml` | |
-| `CIRC_TH` | `0.80` | 초깃값. 오프라인 평가로 조정 |
+| `CIRC_TH` | `0.935` | 오프라인 평가로 정한 값 (docs/05-detection.md §4) |
 | `SOLID_TH` | `0.95` | 초깃값. 오프라인 평가로 조정 |
-| `MIN_AREA_RATIO` | `0.002` | 프레임 면적 대비 최소 객체 크기 (노이즈 제거) |
+| `MIN_AREA_RATIO` | `0.0005` | 프레임 면적 대비 최소 객체 크기 (노이즈 제거) |
 | `OMP_NUM_THREADS` | `2` | **코어 수 / 복제본 수**로 맞추세요 |
 
 ---

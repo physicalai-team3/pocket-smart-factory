@@ -32,7 +32,8 @@ class SessionConfig(BaseModel):
     roi: Optional[list[Point]] = None  # 좌상→우상→우하→좌하, 원본 프레임 비율
     line_x: float = Field(0.34, ge=0, le=1)  # 시뮬레이터 검사선(SCAN=0.34)과 일치
     direction: Literal["rtl", "ltr"] = "rtl"
-    circ_th: float = 0.80
+    # 작은 정상 과자(C3 입력 지름 ~33px)도 원형도 0.92 이상 → 0.935 (docs/05-detection.md §4)
+    circ_th: float = 0.935
     solid_th: float = 0.95
     # uncertain: C4 가 needs_precise 를 올린 트랙이 있을 때만 / interval: 주기적으로 / off
     precise_policy: PrecisePolicy = "uncertain"
@@ -79,7 +80,7 @@ class TrackConfig(BaseModel):
     line_x: float = 0.34
     direction: Literal["rtl", "ltr"] = "rtl"
     # needs_precise 판단용 (SessionConfig 에서 그대로 복사)
-    circ_th: float = 0.80
+    circ_th: float = 0.935
     solid_th: float = 0.95
     circ_band: float = 0.02
     solid_band: float = 0.02

@@ -158,7 +158,7 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 
 **대시보드 → C1, 텍스트**
 ```json
-{ "type": "config", "config": { "line_x": 0.34, "direction": "rtl", "circ_th": 0.8, "solid_th": 0.95, "precise_policy": "uncertain" } }
+{ "type": "config", "config": { "line_x": 0.34, "direction": "rtl", "circ_th": 0.935, "solid_th": 0.95, "precise_policy": "uncertain" } }
 { "type": "roi", "points": [[0.08,0.12],[0.93,0.10],[0.95,0.88],[0.06,0.90]] }
 { "type": "roi", "points": null }
 { "type": "reset" }
@@ -173,7 +173,7 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 | `roi` | `[[x,y]×4] \| null` | `null` | C2 (`X-Roi`) |
 | `line_x` | float 0~1 | 0.34 (시뮬레이터 검사선과 동일) | C4 |
 | `direction` | `"rtl" \| "ltr"` | `"rtl"` | C4 |
-| `circ_th` | float | 0.80 | C3 (`X-Circ-Th`), C4 |
+| `circ_th` | float | 0.935 | C3 (`X-Circ-Th`), C4 |
 | `solid_th` | float | 0.95 | C3 (`X-Solid-Th`), C4 |
 | `precise_policy` | `"uncertain" \| "interval" \| "off"` | `"uncertain"` | C1 |
 | `precise_interval_ms` | int | 300 | C1 (precise 요청 최소 간격) |
@@ -220,7 +220,7 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
 | 추가 헤더 | 값 | 설명 |
 |---|---|---|
 | `X-Mode` | `fast` \| `precise` | 생략하면 `C3_BACKEND` |
-| `X-Circ-Th` | `0.80` | 생략하면 환경변수 값 |
+| `X-Circ-Th` | `0.935` | 생략하면 환경변수 값 |
 | `X-Solid-Th` | `0.95` | |
 
 응답 `200` **InferResult**:
@@ -263,7 +263,7 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
   "seq": 1042,
   "mode": "fast",
   "config": { "line_x": 0.34, "direction": "rtl",
-              "circ_th": 0.80, "solid_th": 0.95, "circ_band": 0.02, "solid_band": 0.02 },
+              "circ_th": 0.935, "solid_th": 0.95, "circ_band": 0.02, "solid_band": 0.02 },
   "infer": { "...InferResult 그대로..." },
   "image_jpeg_b64": "/9j/4AAQ..."
 }
