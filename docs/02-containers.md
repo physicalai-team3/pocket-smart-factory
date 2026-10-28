@@ -121,7 +121,7 @@
 
 판정 (객체 단위, 무상태):
 - `circularity = 4πA / P²`, `solidity = A / hull_area`
-- `defect = circularity < CIRC_TH or solidity < SOLID_TH`
+- `defect = circularity < CIRC_TH or solidity < SOLID_TH` (precise 는 `CIRC_TH + PRECISE_CIRC_OFFSET`)
 - **프레임 가장자리에 닿은 객체는 `partial=true`** 로 표시하고 판정하지 않습니다(잘린 과자는 불량처럼 보이기 때문).
 
 환경변수:
@@ -133,6 +133,7 @@
 | `SAM2_CFG` | `configs/sam2.1/sam2.1_hiera_t.yaml` | |
 | `CIRC_TH` | `0.935` | 오프라인 평가로 정한 값 (docs/05-detection.md §4) |
 | `SOLID_TH` | `0.95` | 초깃값. 오프라인 평가로 조정 |
+| `PRECISE_CIRC_OFFSET` | `0.02` | precise 판정에만 원형도 기준에 더하는 값. SAM 2 경계가 매끈해서 필요 (docs/07-evaluation.md §6.1) |
 | `MIN_AREA_RATIO` | `0.0005` | 프레임 면적 대비 최소 객체 크기 (노이즈 제거) |
 | `OMP_NUM_THREADS` | `2` | **코어 수 / 복제본 수**로 맞추세요 |
 
