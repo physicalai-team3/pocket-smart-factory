@@ -27,8 +27,8 @@ import cv2
 import numpy as np
 
 VOID_BGR = (27, 24, 20)  # 시뮬레이터 배경 #14181b
-DEFAULT_CONFIG = {"line_x": 0.34, "direction": "rtl", "circ_th": 0.80, "solid_th": 0.95,
-                  "circ_band": 0.05, "solid_band": 0.02}
+# circ_band·solid_band 는 넣지 않는다: C4 가 계약 기본값(shared/schemas.py TrackConfig)을 쓰게 한다
+DEFAULT_CONFIG = {"line_x": 0.34, "direction": "rtl", "circ_th": 0.80, "solid_th": 0.95}
 
 
 def find_png(labels_path: Path) -> Path | None:
