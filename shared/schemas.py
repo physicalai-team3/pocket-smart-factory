@@ -37,7 +37,8 @@ class SessionConfig(BaseModel):
     # uncertain: C4 가 needs_precise 를 올린 트랙이 있을 때만 / interval: 주기적으로 / off
     precise_policy: PrecisePolicy = "uncertain"
     precise_interval_ms: int = 300  # precise 요청 사이 최소 간격
-    circ_band: float = 0.05  # |circularity - circ_th| < band 이면 애매
+    # |circularity - circ_th| < band 이면 애매. 정상 과자 원형도 편차(작은 과자일수록 큼)를 덮지 않도록 좁게
+    circ_band: float = 0.02
     solid_band: float = 0.02
 
 
@@ -80,7 +81,7 @@ class TrackConfig(BaseModel):
     # needs_precise 판단용 (SessionConfig 에서 그대로 복사)
     circ_th: float = 0.80
     solid_th: float = 0.95
-    circ_band: float = 0.05
+    circ_band: float = 0.02
     solid_band: float = 0.02
 
 
