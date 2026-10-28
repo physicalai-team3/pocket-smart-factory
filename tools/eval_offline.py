@@ -235,8 +235,13 @@ def main():
     if not rows:
         sys.exit("no matched objects")
 
-    cur = scores(rows, args.circ_th, args.solid_th)
-    print(f"\ncurrent  CIRC_TH={args.circ_th:.3f} SOLID_TH={args.solid_th:.3f}  {fmt(cur)}")
+    # precise 는 C3 가 원형도 기준에 PRECISE_CIRC_OFFSET 을 더해 판정한다 (/health 에서 읽음)
+    circ_cur = args.circ_th
+    if args.mode == "precise":
+        with urllib.request.urlopen(f"{args.c3.rstrip('/')}/health", timeout=10) as r:
+            circ_cur += json.load(r).get("precise_circ_offset", 0.0)
+    cur = scores(rows, circ_cur, args.solid_th)
+    print(f"\ncurrent  CIRC_TH={circ_cur:.3f} SOLID_TH={args.solid_th:.3f}  {fmt(cur)}")
 
     # 격자 탐색: 정확도 최대 → 동률이면 f1 → 동률이면 두 임계값이 덜 극단적인 쪽(중앙값)
     grid = []

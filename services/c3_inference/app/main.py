@@ -28,6 +28,9 @@ SAM2_CKPT = os.getenv("SAM2_CKPT", "/models/sam2.1_hiera_tiny.pt")
 SAM2_CFG = os.getenv("SAM2_CFG", "configs/sam2.1/sam2.1_hiera_t.yaml")
 CIRC_TH = float(os.getenv("CIRC_TH", "0.935"))
 SOLID_TH = float(os.getenv("SOLID_TH", "0.95"))
+# SAM 2 마스크는 경계가 매끈해서 결손 과자의 원형도도 높게 나온다 → precise 판정에만 원형도 기준을 올린다.
+# 폰 960px 재현 데이터에서 +0.02 가 가장 좋았다 (docs/07-evaluation.md §6)
+PRECISE_CIRC_OFFSET = float(os.getenv("PRECISE_CIRC_OFFSET", "0.02"))
 
 MODES = ("mock", "fast", "precise")
 
@@ -51,7 +54,8 @@ async def load_models():
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "c3-inference", "replica": REPLICA,
-            "backend": C3_BACKEND, "sam2": sam2_backend.loaded()}
+            "backend": C3_BACKEND, "sam2": sam2_backend.loaded(),
+            "precise_circ_offset": PRECISE_CIRC_OFFSET}
 
 
 def _run(mode: str, body: bytes, seq: int, circ_th: float, solid_th: float):
@@ -62,7 +66,7 @@ def _run(mode: str, body: bytes, seq: int, circ_th: float, solid_th: float):
     if mode == "mock":
         return w, h, mock_backend.NAME, mock_backend.infer(w, h, seq, circ_th, solid_th)
     if mode == "precise":
-        return w, h, sam2_backend.NAME, sam2_backend.infer(bgr, circ_th, solid_th)
+        return w, h, sam2_backend.NAME, sam2_backend.infer(bgr, circ_th + PRECISE_CIRC_OFFSET, solid_th)
     return w, h, opencv_backend.NAME, opencv_backend.infer(bgr, circ_th, solid_th)
 
 
