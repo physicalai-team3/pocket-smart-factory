@@ -312,6 +312,15 @@
         <label for="precise_interval_ms"><span class="nm">최소 간격</span><span class="val" id="precise_interval_ms-v">300 ms</span></label>
         <input type="range" id="precise_interval_ms" data-cfg="precise_interval_ms" min="100" max="3000" step="50" value="300">
       </div>
+      <div class="ctl">
+        <label for="circ_band"><span class="nm">애매 범위 · 원형도</span><span class="val" id="circ_band-v">±0.020</span></label>
+        <input type="range" id="circ_band" data-cfg="circ_band" min="0.005" max="0.100" step="0.005" value="0.020">
+      </div>
+      <div class="ctl">
+        <label for="solid_band"><span class="nm">애매 범위 · 볼록도</span><span class="val" id="solid_band-v">±0.020</span></label>
+        <input type="range" id="solid_band" data-cfg="solid_band" min="0.005" max="0.050" step="0.005" value="0.020">
+      </div>
+      <p class="help">특징값이 하한 ± 범위 안이면 “애매”로 보고 SAM 2를 요청합니다. 넓힐수록 SAM 2를 자주 부릅니다.</p>
     </section>
 
     <section class="grp">
@@ -356,7 +365,7 @@
 
     <div class="strip" id="strip">
       <span>단계 지연 <b id="s-c2">—</b> / <b id="s-c3">—</b> / <b id="s-c4">—</b> ms (C2 / C3 / C4)</span>
-      <span>SAM 2 <b id="s-pfps">—</b> fps · 마지막 <b id="s-pms">—</b> ms</span>
+      <span>SAM 2 <b id="s-pfps">—</b> fps · 마지막 <b id="s-pms">—</b> ms · 애매한 트랙 <b id="s-amb">—</b>개</span>
       <span id="s-err">오류 —</span>
     </div>
 
@@ -415,7 +424,9 @@
     line_x: v => Math.round(v*100) + ' %',
     circ_th: v => (+v).toFixed(2),
     solid_th: v => (+v).toFixed(3),
-    precise_interval_ms: v => Math.round(v) + ' ms'
+    precise_interval_ms: v => Math.round(v) + ' ms',
+    circ_band: v => '±' + (+v).toFixed(3),
+    solid_band: v => '±' + (+v).toFixed(3)
   };
 
   /* ── 세션 · QR ────────────────────────────── */
@@ -587,7 +598,8 @@
     $('#roi-edit').disabled = false;
     const lat = h.latency_ms && h.latency_ms.total != null ? ` · ${Math.round(h.latency_ms.total)} ms` : '';
     $('#plate').textContent = `RESULT · seq ${h.seq} · ${h.w}×${h.h}${lat}`;
-    $('#foot-seq').textContent = `트랙 ${h.tracks ? h.tracks.length : 0}개 · 정밀 판정 대기 ${h.tracks ? h.tracks.filter(t => t.needs_precise).length : 0}개`;
+    $('#foot-seq').textContent = `화면 속 트랙 ${h.tracks ? h.tracks.length : 0}개`;
+    $('#s-amb').textContent = h.tracks ? h.tracks.filter(t => t.needs_precise).length : 0;
 
     const c = h.counts || { total:0, ok:0, ng:0 };
     $('#r-total').textContent = c.total;
@@ -660,6 +672,8 @@
     document.querySelectorAll('[data-cfg-policy]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cfgPolicy === c.precise_policy)));
     $('#policy-help').textContent = POLICY_HELP[c.precise_policy] || '';
     $('#precise_interval_ms').disabled = c.precise_policy === 'off';
+    // band 는 uncertain 정책에서만 쓰인다
+    $('#circ_band').disabled = $('#solid_band').disabled = c.precise_policy !== 'uncertain';
     if (!roi.editing) setRoiState(c.roi);
   }
 
