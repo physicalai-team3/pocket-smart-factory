@@ -177,7 +177,7 @@ Python 디코딩은 `shared/schemas.py`의 `unpack_envelope()` / `pack_envelope(
 | `solid_th` | float | 0.95 | C3 (`X-Solid-Th`), C4 |
 | `precise_policy` | `"uncertain" \| "interval" \| "off"` | `"uncertain"` | C1 |
 | `precise_interval_ms` | int | 300 | C1 (precise 요청 최소 간격) |
-| `circ_band` | float | 0.05 | C4 (`needs_precise` 판단) |
+| `circ_band` | float | 0.02 | C4 (`needs_precise` 판단) |
 | `solid_band` | float | 0.02 | C4 (`needs_precise` 판단) |
 
 → 이 구조 덕분에 **C2와 C3는 상태 없이** 동작합니다. 설정은 C1이 갖고 있고, 요청마다 함께 전달됩니다.
@@ -263,7 +263,7 @@ C1은 한 단계라도 실패하거나 타임아웃이 나면 **그 프레임을
   "seq": 1042,
   "mode": "fast",
   "config": { "line_x": 0.34, "direction": "rtl",
-              "circ_th": 0.80, "solid_th": 0.95, "circ_band": 0.05, "solid_band": 0.02 },
+              "circ_th": 0.80, "solid_th": 0.95, "circ_band": 0.02, "solid_band": 0.02 },
   "infer": { "...InferResult 그대로..." },
   "image_jpeg_b64": "/9j/4AAQ..."
 }
