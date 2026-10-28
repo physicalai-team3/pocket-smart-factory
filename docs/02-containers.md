@@ -168,6 +168,7 @@
 | `MAX_MISSES` | `5` | |
 | `MATCH_MAX_DIST` | `0.6` | 매칭 허용 거리 (객체 지름 대비 비율) |
 | `JPEG_QUALITY` | `70` | 대시보드로 보낼 결과 이미지 품질 |
+| `HISTORY_FRAMES` | `30` | precise 결과 매칭용 위치 이력 보관 프레임 수 (10fps 기준 3초) |
 
 ---
 
