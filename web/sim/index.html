@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>컨베이어 과자 검사 시뮬레이터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --machine:#b7b3a8;
+    --panel:#e5e2da;
+    --panel-2:#d3cfc5;
+    --ink:#1a1d1f;
+    --ink-2:#5c6266;
+    --line:#a8a49a;
+    --signal:#1f5c8b;
+    --hazard:#e8b21f;
+    --alarm:#c2372b;
+    --ok:#3e7d53;
+    --void:#14181b;
+    --rubber:#2a2e31;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--machine);
+    background-image:
+      linear-gradient(0deg,rgba(0,0,0,.07) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(0,0,0,.05) 1px,transparent 1px);
+    background-size:34px 34px;
+    color:var(--ink);
+    font-family:'Barlow','Noto Sans KR',system-ui,sans-serif;
+    font-size:14px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .rig{
+    display:grid;
+    grid-template-columns:322px minmax(0,1fr);
+    gap:14px;
+    padding:14px;
+    max-width:1680px;
+    margin:0 auto;
+    align-items:start;
+  }
+
+  /* ── 제어 패널 ───────────────────────────────── */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-top:3px solid var(--ink);
+    box-shadow:0 2px 0 rgba(0,0,0,.18), inset 0 1px 0 #fff;
+    position:sticky;top:14px;
+    max-height:calc(100vh - 28px);
+    overflow-y:auto;
+  }
+  .panel-head{padding:12px 14px 10px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  .panel-head h1{
+    margin:0;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;
+    font-weight:700;font-size:19px;letter-spacing:.04em;text-transform:uppercase;
+  }
+  .panel-head p{margin:3px 0 0;font-size:11.5px;color:var(--ink-2);letter-spacing:.02em}
+
+  .grp{padding:12px 14px 14px;border-bottom:1px solid var(--line)}
+  .grp>h2{
+    margin:0 0 10px;font-family:'Barlow Condensed','Noto Sans KR',sans-serif;
+    font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-2);display:flex;align-items:center;gap:8px;
+  }
+  .grp>h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  .ctl{margin-bottom:11px}
+  .ctl:last-child{margin-bottom:0}
+  .ctl label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:5px}
+  .ctl .nm{font-size:12.5px;font-weight:500}
+  .ctl .val{
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:500;
+    background:var(--void);color:var(--hazard);padding:2px 6px;border-radius:2px;min-width:56px;text-align:right;
+  }
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:20px;background:transparent;cursor:pointer;margin:0;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:6px;background:var(--void);border-radius:0}
+  input[type=range]::-moz-range-track{height:6px;background:var(--void)}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:18px;margin-top:-6px;background:var(--hazard);
+    border:1px solid #7a5c05;box-shadow:inset 0 -4px 0 rgba(0,0,0,.22);
+  }
+  input[type=range]::-moz-range-thumb{width:14px;height:18px;border-radius:0;background:var(--hazard);border:1px solid #7a5c05}
+  input[type=range]:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .seg button{
+    font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:12.5px;letter-spacing:.05em;
+    padding:8px 4px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);cursor:pointer;
+  }
+  .seg button[aria-pressed=true]{background:var(--signal);border-color:#123f61;color:#fff}
+  .seg button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+  .chk{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:12.5px;cursor:pointer}
+  .chk input{accent-color:var(--signal);width:15px;height:15px}
+
+  .acts{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:12px 14px}
+  .btn{
+    font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:13px;font-weight:600;letter-spacing:.06em;
+    text-transform:uppercase;padding:10px 6px;border:1px solid var(--ink);background:var(--ink);color:#f2efe8;cursor:pointer;
+    box-shadow:0 2px 0 rgba(0,0,0,.25);
+  }
+  .btn:active{transform:translateY(2px);box-shadow:none}
+  .btn.ghost{background:var(--panel-2);color:var(--ink);border-color:var(--line)}
+  .btn.wide{grid-column:1/-1}
+  .btn.run[data-state=paused]{background:var(--ok);border-color:#2c5b3c}
+  .btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+  /* ── 스테이지 ────────────────────────────────── */
+  .deck{display:flex;flex-direction:column;gap:10px;min-width:0}
+  .readout{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);
+  }
+  .cell{background:var(--panel);padding:8px 10px}
+  .cell .k{font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+  .cell .v{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600;line-height:1.15;margin-top:2px}
+  .cell .v.ng{color:var(--alarm)}
+  .cell .v.ok{color:var(--ok)}
+
+  .stage{
+    position:relative;background:var(--void);
+    border:1px solid #0b0e10;
+    border-top:9px solid var(--hazard);border-bottom:9px solid var(--hazard);
+    background-image:none;overflow:hidden;
+  }
+  .stage::before,.stage::after{
+    content:"";position:absolute;left:0;right:0;height:9px;z-index:3;pointer-events:none;
+    background:repeating-linear-gradient(-45deg,#14181b 0 9px,transparent 9px 18px);
+  }
+  .stage::before{top:-9px}
+  .stage::after{bottom:-9px}
+  #view{display:block;width:100%}
+  .plate{
+    position:absolute;left:0;top:0;z-index:2;pointer-events:none;
+    font-family:'Barlow Condensed','Noto Sans KR',sans-serif;font-size:10.5px;letter-spacing:.18em;
+    text-transform:uppercase;color:#7d8991;padding:6px 9px;
+  }
+  .foot{
+    display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11.5px;color:#5c6266;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  .foot kbd{background:var(--panel);border:1px solid var(--line);border-bottom-width:2px;padding:1px 5px;font:inherit}
+
+  @media (max-width:900px){
+    .rig{grid-template-columns:1fr;padding:10px;gap:10px}
+    .panel{position:static;max-height:none;order:2}
+    .deck{order:1}
+  }
+  @media (prefers-reduced-motion:reduce){.btn:active{transform:none}}
+</style>
+</head>
+<body>
+<div class="rig">
+
+  <aside class="panel">
+    <div class="panel-head">
+      <h1>과자 검사 라인 · 시뮬레이터</h1>
+      <p>SAM2 결함 검출 모델 테스트용 합성 영상</p>
+    </div>
+
+    <section class="grp">
+      <h2>라인 구성</h2>
+      <div class="ctl">
+        <label for="lines"><span class="nm">생산 라인 수</span><span class="val" id="lines-v">3</span></label>
+        <input type="range" id="lines" data-p="lines" min="1" max="6" step="1" value="3">
+      </div>
+      <div class="ctl">
+        <label for="lineGap"><span class="nm">라인 간격</span><span class="val" id="lineGap-v">150 px</span></label>
+        <input type="range" id="lineGap" data-p="lineGap" min="70" max="260" step="2" value="150">
+      </div>
+      <div class="ctl">
+        <label for="speed"><span class="nm">컨베이어 속도</span><span class="val" id="speed-v">130 px/s</span></label>
+        <input type="range" id="speed" data-p="speed" min="0" max="600" step="5" value="130">
+      </div>
+    </section>
+
+    <section class="grp">
+      <h2>과자 규격</h2>
+      <div class="ctl">
+        <label for="size"><span class="nm">과자 지름</span><span class="val" id="size-v">78 px</span></label>
+        <input type="range" id="size" data-p="size" min="18" max="200" step="1" value="78">
+      </div>
+      <div class="ctl">
+        <label for="gap"><span class="nm">과자 간격</span><span class="val" id="gap-v">90 px</span></label>
+        <input type="range" id="gap" data-p="gap" min="4" max="400" step="2" value="90">
+      </div>
+      <p style="margin:2px 0 0;font-size:11px;color:var(--ink-2)">모든 라인의 과자 지름은 설정값으로 동일합니다.</p>
+    </section>
+
+    <section class="grp">
+      <h2>불량 조건</h2>
+      <div class="ctl">
+        <div class="seg" role="group" aria-label="배치 방식">
+          <button type="button" data-mode="mix" aria-pressed="true">혼합 랜덤</button>
+          <button type="button" data-mode="pair" aria-pressed="false">나란히 비교</button>
+        </div>
+        <p style="margin:6px 0 0;font-size:11px;color:var(--ink-2)" id="mode-help">불량품이 라인·순서 무관하게 무작위로 섞여 흐릅니다.</p>
+      </div>
+      <div class="ctl">
+        <label for="defect"><span class="nm">불량률</span><span class="val" id="defect-v">30 %</span></label>
+        <input type="range" id="defect" data-p="defect" min="0" max="100" step="1" value="30">
+      </div>
+      <div class="ctl">
+        <label for="strength"><span class="nm">결손 크기</span><span class="val" id="strength-v">55 %</span></label>
+        <input type="range" id="strength" data-p="strength" min="10" max="100" step="1" value="55">
+      </div>
+      <label class="chk"><input type="checkbox" id="stagger" data-p="stagger" checked><span>라인별 위상 어긋나게</span></label>
+    </section>
+
+    <section class="grp">
+      <h2>촬영 환경</h2>
+      <div class="ctl">
+        <label for="light"><span class="nm">조명 불균일</span><span class="val" id="light-v">20 %</span></label>
+        <input type="range" id="light" data-p="light" min="0" max="100" step="1" value="20">
+      </div>
+      <div class="ctl">
+        <label for="noise"><span class="nm">센서 노이즈</span><span class="val" id="noise-v">0 %</span></label>
+        <input type="range" id="noise" data-p="noise" min="0" max="100" step="1" value="0">
+      </div>
+      <label class="chk"><input type="checkbox" id="shadow" data-p="shadow" checked><span>그림자 렌더링</span></label>
+    </section>
+
+    <section class="grp">
+      <h2>정답 오버레이</h2>
+      <label class="chk"><input type="checkbox" id="mask" data-p="mask"><span>정답 외곽선 표시</span></label>
+      <p style="margin:8px 0 0;font-size:11px;color:var(--ink-2)">확인용 보조선입니다. 캡처 시에는 자동으로 꺼집니다.</p>
+    </section>
+
+    <div class="acts">
+      <button class="btn run" id="run" data-state="running">일시정지</button>
+      <button class="btn ghost" id="step">한 프레임</button>
+      <button class="btn ghost" id="reset">라인 비우기</button>
+      <button class="btn ghost" id="shot">프레임 저장</button>
+      <button class="btn wide" id="labels">정답 라벨 JSON 내보내기</button>
+    </div>
+  </aside>
+
+  <div class="deck">
+    <div class="readout">
+      <div class="cell"><div class="k">검사 통과</div><div class="v" id="r-total">0</div></div>
+      <div class="cell"><div class="k">정상</div><div class="v ok" id="r-ok">0</div></div>
+      <div class="cell"><div class="k">불량</div><div class="v ng" id="r-ng">0</div></div>
+      <div class="cell"><div class="k">실측 불량률</div><div class="v" id="r-rate">0.0%</div></div>
+      <div class="cell"><div class="k">화면 내 객체</div><div class="v" id="r-live">0</div></div>
+      <div class="cell"><div class="k">프레임</div><div class="v" id="r-fps">0</div></div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="plate">CAM-01 · 진행방향 ← · 검사선 고정</div>
+      <canvas id="view"></canvas>
+    </div>
+
+    <div class="foot">
+      <span><kbd>Space</kbd> 정지/재생</span>
+      <span><kbd>S</kbd> 프레임 저장</span>
+      <span><kbd>L</kbd> 라벨 저장</span>
+      <span><kbd>R</kbd> 비우기</span>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const cvs = $('#view'), ctx = cvs.getContext('2d', { alpha:false });
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+
+  const P = {
+    lines:3, lineGap:150, speed:130,
+    size:78, gap:90,
+    mode:'mix', defect:30, strength:55, stagger:true,
+    light:20, noise:0, shadow:true,
+    mask:false
+  };
+  const UNIT = { lineGap:' px', speed:' px/s', size:' px', gap:' px', defect:' %', strength:' %', light:' %', noise:' %' };
+
+  let W = 900, H = 450;
+  let cookies = [], lastX = [], beltOff = 0, nextId = 1, running = true;
+  let stats = { total:0, ng:0 };
+  let fps = 0, fAcc = 0, fCnt = 0;
+  const SEG = 180;
+  const SCAN = 0.34;               // 검사선 위치 (화면 폭 비율)
+  const TYPES = ['bite','cut','wedge','half'];
+  const TYPE_KO = { bite:'한쪽 파임', cut:'단면 절단', wedge:'조각 결손', half:'반쪽 파손', round:'정상' };
+
+  /* ── 형상 생성 ─────────────────────────────── */
+  // 정상품은 반경 1의 완전 원형. 불량품은 원에서 한 덩어리를 잘라낸 형태로,
+  // 잘린 구간을 뺀 나머지 외곽은 원본 원호를 그대로 유지한다.
+  function makeShape(isDefect) {
+    const s = P.strength / 100;
+    const type = isDefect ? TYPES[(Math.random()*TYPES.length)|0] : 'round';
+    const dir = Math.random()*Math.PI*2;          // 결손이 생긴 방향
+    const amp = 0.55 + Math.random()*0.45;        // 개체별 편차
+    const k = s * amp;
+    const rad = new Float32Array(SEG);
+
+    // 유형별 절단 파라미터
+    const biteR = 0.35 + k*0.55;                  // 물어뜯긴 원의 반지름
+    const biteD = 1 + biteR*(0.62 - k*0.34);      // 그 원의 중심 거리
+    const cutD  = 0.86 - k*0.52;                  // 직선 절단면까지 거리
+    const halfD = 0.17 - k*0.15;                  // 반쪽 절단면까지 거리
+    const wedgeW = 0.22 + k*0.5;                  // 결손 조각의 반각(rad)
+
+    let rmin = 9, rmax = 0;
+    for (let i=0;i<SEG;i++){
+      const a = i/SEG*Math.PI*2;
+      const d = ((a - dir + Math.PI*3) % (Math.PI*2)) - Math.PI;
+      const c = Math.cos(d);
+      let r = 1;
+
+      if (type === 'bite'){
+        // 원점에서 각 a로 쏜 광선과 절단 원의 첫 교점까지 거리
+        const b = biteD*c, disc = b*b - (biteD*biteD - biteR*biteR);
+        if (disc > 0){
+          const t = b - Math.sqrt(disc);
+          if (t > 0 && t < 1) r = t;
+        }
+      } else if (type === 'cut' || type === 'half'){
+        const D = (type === 'cut') ? cutD : halfD;
+        if (c > 0.001) r = Math.min(1, D/c);
+      } else if (type === 'wedge'){
+        if (Math.abs(d) < wedgeW) r = 0.07 + Math.abs(d)/wedgeW*0.1;
+      }
+
+      r = Math.max(0.06, r);
+      rad[i] = r;
+      if (r < rmin) rmin = r;
+      if (r > rmax) rmax = r;
+    }
+
+    // 초코칩 / 구움자국 — 잘려나간 영역 밖에만 배치
+    const chips = [];
+    const n = 3 + ((Math.random()*6)|0);
+    for (let i=0;i<n;i++){
+      for (let tries=0; tries<12; tries++){
+        const a = Math.random()*Math.PI*2, rho = Math.sqrt(Math.random())*0.62;
+        const idx = ((a/(Math.PI*2)*SEG)|0) % SEG;
+        if (rho < rad[idx]*0.82){
+          chips.push([Math.cos(a)*rho, Math.sin(a)*rho, 0.055 + Math.random()*0.055]);
+          break;
+        }
+      }
+    }
+    return { rad, type, chips, roundness: rmin/rmax };
+  }
+
+  function addCookie(line, x){
+    const isDefect = (P.mode === 'pair') ? (line % 2 === 1) : (Math.random() < P.defect/100);
+    const sh = makeShape(isDefect);
+    const r = P.size/2;   // 모든 라인 동일 규격
+    cookies.push({
+      id: nextId++, line, x, r,
+      rot: Math.random()*Math.PI*2,
+      defect: isDefect, counted:false,
+      tone: 0.88 + Math.random()*0.24,
+      ...sh
+    });
+  }
+
+  /* ── 레이아웃 ─────────────────────────────── */
+  function lineY(i){ return i*P.lineGap + P.lineGap/2; }
+
+  function resize(){
+    W = Math.max(320, Math.round($('#stage').clientWidth));
+    H = Math.max(140, Math.round(P.lines * P.lineGap));
+    cvs.style.height = H + 'px';
+    cvs.width  = Math.round(W*dpr);
+    cvs.height = Math.round(H*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  function reset(){
+    cookies = []; nextId = 1; stats = { total:0, ng:0 };
+    lastX = [];
+    for (let i=0;i<P.lines;i++){
+      lastX[i] = P.stagger ? W - Math.random()*(P.gap + P.size) : W;
+    }
+    draw(0);
+  }
+
+  /* ── 시뮬레이션 ───────────────────────────── */
+  function update(dt){
+    const dx = P.speed * dt;
+    beltOff = (beltOff + dx) % 44;
+    const scanX = W*SCAN;
+
+    for (const c of cookies){
+      const px = c.x;
+      c.x -= dx;
+      if (!c.counted && px > scanX && c.x <= scanX){
+        c.counted = true; stats.total++; if (c.defect) stats.ng++;
+      }
+    }
+    cookies = cookies.filter(c => c.x + c.r > -4);
+
+    for (let i=0;i<P.lines;i++){
+      if (lastX[i] === undefined) lastX[i] = W;
+      lastX[i] -= dx;
+      const pitch = P.gap + P.size;
+      if (lastX[i] <= W - pitch){
+        const x = W + P.size/2;
+        addCookie(i, x);
+        lastX[i] = x;
+      }
+    }
+    cookies = cookies.filter(c => c.line < P.lines);
+  }
+
+  /* ── 렌더링 ───────────────────────────────── */
+  function pathOf(c, k){
+    ctx.beginPath();
+    if (c.type === 'round'){
+      ctx.arc(c.x, lineY(c.line), c.r*(k||1), 0, Math.PI*2);
+      return;
+    }
+    for (let i=0;i<SEG;i++){
+      const a = i/SEG*Math.PI*2 + c.rot;
+      const rr = c.r * c.rad[i] * (k||1);
+      const x = c.x + Math.cos(a)*rr, y = lineY(c.line) + Math.sin(a)*rr;
+      i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+    }
+    ctx.closePath();
+  }
+
+  function bboxOf(c){
+    let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    const cy = lineY(c.line);
+    for (let i=0;i<SEG;i++){
+      const a = i/SEG*Math.PI*2 + c.rot, rr = c.r*c.rad[i];
+      const x = c.x + Math.cos(a)*rr, y = cy + Math.sin(a)*rr;
+      if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y;
+    }
+    return [x0,y0,x1-x0,y1-y0];
+  }
+
+  function drawBelts(){
+    for (let i=0;i<P.lines;i++){
+      const cy = lineY(i), bh = Math.max(26, P.lineGap - 16);
+      const top = cy - bh/2;
+      ctx.fillStyle = '#2a2e31';
+      ctx.fillRect(0, top, W, bh);
+      // 벨트 클리트
+      ctx.strokeStyle = 'rgba(255,255,255,.055)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = -beltOff; x < W; x += 44){ ctx.moveTo(x, top+2); ctx.lineTo(x, top+bh-2); }
+      ctx.stroke();
+      // 사이드 레일
+      ctx.fillStyle = '#4a5054'; ctx.fillRect(0, top-3, W, 3);
+      ctx.fillStyle = '#0e1112'; ctx.fillRect(0, top+bh, W, 3);
+      // 라인 번호 플레이트
+      ctx.fillStyle = 'rgba(232,178,31,.5)';
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillText('LINE ' + String(i+1).padStart(2,'0'), 8, top + 4);
+    }
+  }
+
+  function drawCookie(c){
+    const cy = lineY(c.line), r = c.r;
+    if (P.shadow){
+      ctx.save(); ctx.translate(r*0.10, r*0.16);
+      ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.filter = 'blur(1px)';
+      pathOf(c); ctx.fill(); ctx.restore();
+    }
+    const g = ctx.createRadialGradient(c.x - r*0.32, cy - r*0.36, r*0.1, c.x, cy, r*1.06);
+    const t = c.tone;
+    g.addColorStop(0, `rgb(${Math.min(255,232*t)|0},${Math.min(255,180*t)|0},${Math.min(255,116*t)|0})`);
+    g.addColorStop(0.68, `rgb(${(201*t)|0},${(138*t)|0},${(75*t)|0})`);
+    g.addColorStop(1, `rgb(${(150*t)|0},${(93*t)|0},${(44*t)|0})`);
+    ctx.fillStyle = g;
+    pathOf(c); ctx.fill();
+
+    ctx.save(); pathOf(c); ctx.clip();
+    ctx.strokeStyle = 'rgba(96,54,20,.75)'; ctx.lineWidth = Math.max(2, r*0.13);
+    pathOf(c); ctx.stroke();
+    for (const [cx0,cy0,cr] of c.chips){
+      const a = c.rot, xx = c.x + (cx0*Math.cos(a)-cy0*Math.sin(a))*r, yy = cy + (cx0*Math.sin(a)+cy0*Math.cos(a))*r;
+      ctx.beginPath(); ctx.arc(xx, yy, cr*r, 0, 6.284);
+      ctx.fillStyle = 'rgba(64,36,17,.82)'; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawOverlay(c){
+    if (!P.mask) return;
+    ctx.strokeStyle = c.defect ? '#ff5a45' : '#57c08a';
+    ctx.lineWidth = 1.6;
+    pathOf(c); ctx.stroke();
+  }
+
+  function drawScan(){
+    const x = Math.round(W*SCAN) + 0.5;
+    ctx.save();
+    ctx.setLineDash([7,5]);
+    ctx.strokeStyle = 'rgba(255,90,69,.8)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(x+6, 12);
+    ctx.fillStyle = 'rgba(255,90,69,.85)';
+    ctx.font = "600 9.5px 'IBM Plex Mono', monospace";
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('INSPECTION LINE', 0, 0);
+    ctx.restore();
+  }
+
+  let noiseTile = null, noiseAge = 0;
+  function makeNoise(){
+    const n = document.createElement('canvas'); n.width = n.height = 96;
+    const nx = n.getContext('2d'), img = nx.createImageData(96,96), d = img.data;
+    for (let i=0;i<d.length;i+=4){
+      const v = 90 + Math.random()*76;
+      d[i]=d[i+1]=d[i+2]=v; d[i+3]=255;
+    }
+    nx.putImageData(img,0,0);
+    return n;
+  }
+
+  function drawEnv(){
+    if (P.light > 0){
+      const k = P.light/100;
+      const g = ctx.createRadialGradient(W*0.42, H*0.3, Math.min(W,H)*0.15, W*0.5, H*0.5, Math.max(W,H)*0.78);
+      g.addColorStop(0, `rgba(255,244,214,${0.16*k})`);
+      g.addColorStop(1, `rgba(0,0,0,${0.62*k})`);
+      ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+      const bx = ((performance.now()/24) % (W+340)) - 170;
+      const b = ctx.createLinearGradient(bx-150,0,bx+150,0);
+      b.addColorStop(0,'rgba(255,255,255,0)');
+      b.addColorStop(0.5,`rgba(255,255,255,${0.07*k})`);
+      b.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle = b; ctx.fillRect(0,0,W,H);
+    }
+    if (P.noise > 0){
+      if (!noiseTile || ++noiseAge > 4){ noiseTile = makeNoise(); noiseAge = 0; }
+      ctx.save();
+      ctx.globalAlpha = (P.noise/100) * 0.4;
+      ctx.globalCompositeOperation = 'overlay';
+      const pat = ctx.createPattern(noiseTile, 'repeat');
+      ctx.fillStyle = pat; ctx.fillRect(0,0,W,H);
+      ctx.restore();
+    }
+  }
+
+  function draw(dt, clean){
+    ctx.fillStyle = '#14181b'; ctx.fillRect(0,0,W,H);
+    drawBelts();
+    for (const c of cookies) drawCookie(c);
+    drawEnv();
+    if (!clean){
+      for (const c of cookies) drawOverlay(c);
+      drawScan();
+    }
+  }
+
+  /* ── 루프 ─────────────────────────────────── */
+  let prev = performance.now(), acc = 0;
+  function loop(now){
+    const dt = Math.min(0.05, (now - prev)/1000);
+    prev = now;
+    if (running){ update(dt); }
+    draw(dt);
+    fAcc += dt; fCnt++;
+    if (fAcc > 0.4){ fps = Math.round(fCnt/fAcc); fAcc = 0; fCnt = 0; }
+    acc += dt;
+    if (acc > 0.15){ acc = 0; refresh(); }
+    requestAnimationFrame(loop);
+  }
+
+  function refresh(){
+    $('#r-total').textContent = stats.total;
+    $('#r-ok').textContent = stats.total - stats.ng;
+    $('#r-ng').textContent = stats.ng;
+    $('#r-rate').textContent = (stats.total ? (stats.ng/stats.total*100) : 0).toFixed(1) + '%';
+    $('#r-live').textContent = cookies.length;
+    $('#r-fps').textContent = fps;
+  }
+
+  /* ── 내보내기 ─────────────────────────────── */
+  function dl(name, url, revoke){
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    if (revoke) setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+  const stamp = () => new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+
+  function capture(){
+    draw(0, true);
+    dl(`frame_${stamp()}.png`, cvs.toDataURL('image/png'));
+    draw(0);
+  }
+
+  function exportLabels(){
+    const anns = cookies.map(c => {
+      const [x,y,w,h] = bboxOf(c), cy = lineY(c.line), seg = [];
+      for (let i=0;i<SEG;i++){
+        const a = i/SEG*Math.PI*2 + c.rot, rr = c.r*c.rad[i];
+        seg.push(+( (c.x + Math.cos(a)*rr) * dpr ).toFixed(2), +( (cy + Math.sin(a)*rr) * dpr ).toFixed(2));
+      }
+      return {
+        id: c.id, line: c.line + 1,
+        category: c.defect ? 'deformed' : 'round',
+        defect_type: c.defect ? c.type : null,
+        defect_type_ko: TYPE_KO[c.defect ? c.type : 'round'],
+        roundness: +c.roundness.toFixed(4),
+        diameter_px: +(c.r*2*dpr).toFixed(1),
+        bbox: [x,y,w,h].map(v => +(v*dpr).toFixed(2)),
+        segmentation: [seg]
+      };
+    });
+    const doc = {
+      captured_at: new Date().toISOString(),
+      image: { width: cvs.width, height: cvs.height, dpr },
+      params: { ...P, scan_line_x: +(W*SCAN*dpr).toFixed(1) },
+      counts: { total_passed: stats.total, defect_passed: stats.ng, in_frame: anns.length },
+      annotations: anns
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type:'application/json' }));
+    dl(`labels_${stamp()}.json`, url, true);
+  }
+
+  /* ── 컨트롤 바인딩 ────────────────────────── */
+  function label(k, v){
+    const el = document.getElementById(k + '-v');
+    if (el) el.textContent = v + (UNIT[k] || '');
+  }
+  document.querySelectorAll('[data-p]').forEach(el => {
+    const k = el.dataset.p;
+    const apply = () => {
+      if (el.type === 'checkbox'){ P[k] = el.checked; }
+      else { P[k] = parseFloat(el.value); label(k, el.value); }
+      if (k === 'lines' || k === 'lineGap'){ resize(); reset(); }
+      if (k === 'stagger') reset();
+    };
+    el.addEventListener('input', apply);
+    apply();
+  });
+
+  document.querySelectorAll('[data-mode]').forEach(b => {
+    b.addEventListener('click', () => {
+      P.mode = b.dataset.mode;
+      document.querySelectorAll('[data-mode]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+      $('#mode-help').textContent = P.mode === 'mix'
+        ? '불량품이 라인·순서 무관하게 무작위로 섞여 흐릅니다.'
+        : '홀수 라인은 정상, 짝수 라인은 불량만 흘러 나란히 비교됩니다.';
+      $('#defect').disabled = (P.mode === 'pair');
+      reset();
+    });
+  });
+
+  const runBtn = $('#run');
+  function setRun(v){
+    running = v;
+    runBtn.textContent = v ? '일시정지' : '재생';
+    runBtn.dataset.state = v ? 'running' : 'paused';
+  }
+  runBtn.addEventListener('click', () => setRun(!running));
+  $('#step').addEventListener('click', () => { setRun(false); update(1/30); draw(0); refresh(); });
+  $('#reset').addEventListener('click', reset);
+  $('#shot').addEventListener('click', capture);
+  $('#labels').addEventListener('click', exportLabels);
+
+  window.addEventListener('keydown', e => {
+    if (e.target.matches('input,button,select')) return;
+    const k = e.key.toLowerCase();
+    if (e.code === 'Space'){ e.preventDefault(); setRun(!running); }
+    else if (k === 's') capture();
+    else if (k === 'l') exportLabels();
+    else if (k === 'r') reset();
+  });
+
+  let rt;
+  window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { resize(); draw(0); }, 120); });
+
+  resize(); reset(); requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

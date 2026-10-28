@@ -1,0 +1,15 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# 모델 가중치, 시뮬레이터 캡처 데이터
+models/*
+!models/.gitkeep
+data/*
+!data/.gitkeep
+
+.vscode/
+.idea/
+.DS_Store

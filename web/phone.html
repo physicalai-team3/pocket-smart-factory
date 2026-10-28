@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera Uplink</title>
+</head>
+<body>
+  <!-- 폰 송출 페이지 (담당 A) — docs/03-messages.md §3.1
+       TODO
+       - ?s=<session> 읽기
+       - getUserMedia({video:{facingMode:"environment", width:{ideal:1280}}})
+         <video playsinline muted autoplay> (iOS 필수)
+       - WS /ws/phone?s= → hello
+       - target_fps 로 canvas 640px → toBlob(jpeg, 0.7) → 봉투 pack → ws.send
+         ws.bufferedAmount > 256KB 면 이번 프레임 건너뛰기
+       - welcome / stats / throttle / error 처리, 20초마다 ping
+       - 화면에 송출 fps, 처리 fps, 지연 표시
+  -->
+  <p>TODO: 카메라 송출</p>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# torch/torchvision 은 Dockerfile에서 CPU 인덱스로 먼저 설치
+git+https://github.com/facebookresearch/sam2.git
